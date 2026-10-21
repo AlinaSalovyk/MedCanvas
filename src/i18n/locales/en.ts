@@ -997,20 +997,7 @@ const en: Record<string, string> = {
   "intro.import.title": "Import",
   "intro.import.text": "Load a previous chart from JSON or FHIR.",
   "intro.done.title": "You are ready",
-  "intro.done.text": "That is the tour. Explore the rest of the features at your own pace.",
-  "credits.title": "About and credits",
-  "credits.intro": "Advanced Odontogram is an interactive dental charting tool. You can record findings tooth by tooth, plan treatment, chart the periodontium and export everything as JSON, FHIR or a PDF report. It runs entirely in the browser and works on its own or inside a larger app.",
-  "credits.creatorTitle": "Creator and Main Developer",
-  "credits.contributorsTitle": "Contributors",
-  "credits.contrib.odontodev": "State hydration and lifecycle API, fillings settings as controlled props, idempotent setters and collapsible cards.",
-  "credits.contrib.julianobazzi": "Brazilian Portuguese translation.",
-  "credits.contrib.yassine": "French translation and the candidate measured anatomy.",
-  "credits.contrib.saegerdirk": "Measured tooth anatomy and the tooth generator, and the composable interface proposal.",
-  "credits.librariesTitle": "Built with",
-  "credits.welcome": "Contributions are welcome. Open a pull request on GitHub and you will be credited here.",
-  "credits.star": "Star on GitHub",
-  "credits.github": "View on GitHub",
-  "credits.close": "Close"
+  "intro.done.text": "That is the tour. Explore the rest of the features at your own pace."
 };
 
 export default en;
