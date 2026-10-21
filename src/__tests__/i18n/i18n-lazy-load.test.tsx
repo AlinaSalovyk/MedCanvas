@@ -1,4 +1,4 @@
-﻿// The UI languages are code-split: English — the fallback, and the language the
+// The UI languages are code-split: English — the fallback, and the language the
 // UI starts in — is the only locale in the main bundle; Ukrainian is its own chunk,
 // fetched the first time it is selected.
 //
@@ -73,10 +73,10 @@ describe("i18n: load first, switch second", () => {
     // Synchronously after the call nothing has moved: t() is still answering in
     // a language it can resolve.
     expect(i.getI18nLanguage()).toBe("en");
-    expect(i.t("credits.close")).toBe("Close");
+    expect(i.t("settings.close")).toBe("Close");
     await pending;
     expect(i.getI18nLanguage()).toBe("uk");
-    expect(i.t("credits.close")).toBe("Закрити");
+    expect(i.t("settings.close")).toBe("Закрити");
   });
 
   it("a loaded language still switches synchronously, as it always did", async () => {
@@ -109,7 +109,7 @@ describe("i18n: a language that fails to load", () => {
     vi.doMock("../../i18n/locales/uk", () => {
       attempts++;
       if (attempts === 1) throw new Error("chunk 404");
-      return { default: { "credits.close": "Закрити" } };
+      return { default: { "settings.close": "Закрити" } };
     });
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const i = await freshI18n();
@@ -136,10 +136,10 @@ describe("useI18n: no flash of the fallback on a switch", () => {
 
     rerender({ language: "uk" });                // uk is not loaded yet
     expect(result.current.lang).toBe("en");      // …so English stays
-    expect(result.current.t("credits.close")).toBe("Close");
+    expect(result.current.t("settings.close")).toBe("Close");
 
     await waitFor(() => expect(result.current.lang).toBe("uk"));
-    expect(result.current.t("credits.close")).toBe("Закрити");
+    expect(result.current.t("settings.close")).toBe("Закрити");
   });
 });
 
