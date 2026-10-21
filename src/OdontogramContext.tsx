@@ -82,7 +82,6 @@ function OdontogramProviderInner({
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
-  const [creditsOpen, setCreditsOpen] = useState(false);
   const [caseDxOpen, setCaseDxOpen] = useState(false);
 
   const [exportPngOn, setExportPngOn] = useState<boolean>(true);
@@ -300,8 +299,6 @@ function OdontogramProviderInner({
     setSettingsOpen,
     pdfOpen,
     setPdfOpen,
-    creditsOpen,
-    setCreditsOpen,
     caseDxOpen,
     setCaseDxOpen,
   };
