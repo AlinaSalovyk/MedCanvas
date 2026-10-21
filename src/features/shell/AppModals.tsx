@@ -9,7 +9,6 @@ import SettingsModal from "@/SettingsModal";
 import PerioChart from "@/PerioChart";
 import DualStateConfirm from "@/DualStateConfirm";
 import ExportOptionsModal from "@/ExportOptionsModal";
-import CreditsModal from "@/CreditsModal";
 import CaseDiagnosesModal from "@/CaseDiagnosesModal";
 
 /**
@@ -26,8 +25,6 @@ export function AppModals(): React.ReactElement {
     setSettingsOpen,
     pdfOpen,
     setPdfOpen,
-    creditsOpen,
-    setCreditsOpen,
     caseDxOpen,
     setCaseDxOpen,
   } = useOdontogramUi();
@@ -54,11 +51,6 @@ export function AppModals(): React.ReactElement {
         open={pdfOpen}
         t={t}
         onClose={() => setPdfOpen(false)}
-      />
-      <CreditsModal
-        open={creditsOpen}
-        t={t}
-        onClose={() => setCreditsOpen(false)}
       />
       <CaseDiagnosesModal
         open={caseDxOpen}
