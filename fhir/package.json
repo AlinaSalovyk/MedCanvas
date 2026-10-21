@@ -1,0 +1,17 @@
+{
+  "name": "odontogram.fhir",
+  "version": "2.6.0",
+  "type": "Conformance",
+  "fhirVersions": [
+    "4.0.1"
+  ],
+  "canonical": "https://odontogram.app/fhir",
+  "title": "Odontogram — FHIR terminology",
+  "description": "Engine-local CodeSystem and ValueSets of the Odontogram FHIR export (dental charting: tooth status, restorations, caries, periodontal indices, diagnoses).",
+  "author": "Odontogram",
+  "license": "MIT",
+  "url": "https://odontogram.app/fhir",
+  "dependencies": {
+    "hl7.fhir.r4.core": "4.0.1"
+  }
+}

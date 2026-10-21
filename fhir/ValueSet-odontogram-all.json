@@ -1,0 +1,19 @@
+{
+  "resourceType": "ValueSet",
+  "id": "odontogram-all",
+  "url": "https://odontogram.app/fhir/ValueSet/odontogram-all",
+  "version": "2.6.0",
+  "name": "OdontogramAll",
+  "title": "Odontogram — all engine-local codes",
+  "status": "active",
+  "experimental": false,
+  "publisher": "Odontogram",
+  "description": "Every concept of the Odontogram CodeSystem (intensional include of the whole code system).",
+  "compose": {
+    "include": [
+      {
+        "system": "https://odontogram.app/fhir/CodeSystem/odontogram"
+      }
+    ]
+  }
+}
