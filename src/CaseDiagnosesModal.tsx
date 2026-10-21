@@ -11,7 +11,7 @@ type CaseConditionsData = ReturnType<typeof getCaseConditions>;
 /**
  * The "Case / regional diagnoses" pop-up. Moved out of the perio-status sidebar
  * (`PerioSidebar`) into its own dialog, opened from the "Diagnoses" button next
- * to the Odontogram / Periodontal-status view toggle. Mirrors {@link CreditsModal}'s
+ * to the Odontogram / Periodontal-status view toggle. Standard accessible
  * dialog contract: `role="dialog"` + `aria-modal`, Escape closes, backdrop click
  * closes, focus is trapped while open and returned to the opener on close.
  *
@@ -61,7 +61,7 @@ export default function CaseDiagnosesModal({
       <div
         id="caseDiagnosesModal"
         ref={dialogRef}
-        className="odon-credits-modal odon-casedx-modal"
+        className="odon-casedx-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -72,7 +72,7 @@ export default function CaseDiagnosesModal({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
 
-        <h2 className="odon-credits-title" id={titleId}>{t("case.diagnoses.section")}</h2>
+        <h2 className="odon-casedx-title" id={titleId}>{t("case.diagnoses.section")}</h2>
 
         <div id="caseDiagnosesSection" className="case-diagnoses odon-casedx-body">
           {caseConds.map((c) => (
