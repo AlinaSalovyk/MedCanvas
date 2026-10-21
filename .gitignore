@@ -39,7 +39,7 @@ coverage/
 odontogram-report-*.pdf
 
 # === Adobe Illustrator files ===
-graphics/
+/graphics/
 
 # === SNOMED CT working files ===
 snomed/
