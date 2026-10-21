@@ -243,8 +243,6 @@ export type OdontogramUiContextValue = {
   setSettingsOpen: (open: boolean) => void;
   pdfOpen: boolean;
   setPdfOpen: (open: boolean) => void;
-  creditsOpen: boolean;
-  setCreditsOpen: (open: boolean) => void;
   caseDxOpen: boolean;
   setCaseDxOpen: (open: boolean) => void;
 };
