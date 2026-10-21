@@ -1,0 +1,66 @@
+{
+  "name": "odontogram-app",
+  "private": true,
+  "version": "2.6.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Interactive, SVG-based dental odontogram (dental chart) editor for React + TypeScript — multi-surface caries/filling charting, endodontic/prosthetic/periodontal states, FDI/Universal/Palmer numbering, HL7 FHIR R4 export/import, and ICDAS scoring.",
+  "keywords": [
+    "odontogram",
+    "dental-chart",
+    "dental-charting",
+    "dentistry",
+    "dental-records",
+    "react",
+    "typescript",
+    "svg",
+    "fhir",
+    "icdas",
+    "periodontal"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "parity:capture": "PARITY_CAPTURE=1 vitest run src/__tests__/parity/capture.test.ts",
+    "fhir:codesystem": "FHIR_CODESYSTEM_WRITE=1 vitest run src/__tests__/fhir/fhir-codesystem.test.ts src/__tests__/fhir/fhir-valuesets.test.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.13",
+    "jspdf": "^4.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.63.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/fhir": "^0.0.44",
+    "@types/jsdom": "^28.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "globals": "^15.15.0",
+    "jiti": "^2.6.1",
+    "jsdom": "^28.1.0",
+    "postcss": "^8.4.45",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.53.1",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}
