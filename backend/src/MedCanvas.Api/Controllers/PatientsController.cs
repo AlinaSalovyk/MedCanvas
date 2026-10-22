@@ -1,4 +1,6 @@
 using MedCanvas.Application.Common.Models;
+using MedCanvas.Application.Common.Security;
+using MedCanvas.Application.Features.Encounters;
 using MedCanvas.Application.Features.Patients;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -19,9 +21,11 @@ public sealed class PatientsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Policies.CanMutatePatients)]
     [ProducesResponseType(typeof(PatientDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create([FromBody] CreatePatientCommand command, CancellationToken cancellationToken)
     {
         var patient = await _sender.Send(command, cancellationToken);
@@ -29,22 +33,30 @@ public sealed class PatientsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = Policies.CanReadPatients)]
     [ProducesResponseType(typeof(PagedResult<PatientDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search,
-        [FromQuery] int page = 1,
+        [FromQuery] string? searchTerm,
+        [FromQuery] int? page,
+        [FromQuery] int? pageNumber,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var query = new GetPatientsQuery(search, page, pageSize);
+        var effectiveSearch = !string.IsNullOrWhiteSpace(searchTerm) ? searchTerm : search;
+        var effectivePage = pageNumber ?? page ?? 1;
+        var query = new GetPatientsQuery(effectiveSearch, effectivePage, pageSize);
         var result = await _sender.Send(query, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = Policies.CanReadPatients)]
     [ProducesResponseType(typeof(PatientDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
     {
@@ -52,10 +64,24 @@ public sealed class PatientsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id:guid}/encounters")]
+    [Authorize(Policy = Policies.CanReadPatients)]
+    [ProducesResponseType(typeof(IReadOnlyList<EncounterDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetEncounters([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(new GetPatientEncountersQuery(id), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.CanMutatePatients)]
     [ProducesResponseType(typeof(PatientDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
@@ -69,7 +95,8 @@ public sealed class PatientsController : ControllerBase
                 Type = "https://medcanvas.health/errors/route-mismatch",
                 Title = "Route Mismatch",
                 Status = StatusCodes.Status400BadRequest,
-                Detail = "The path ID does not match the command payload ID."
+                Detail = "The path ID does not match the command payload ID.",
+                Instance = HttpContext.Request.Path
             });
         }
 
