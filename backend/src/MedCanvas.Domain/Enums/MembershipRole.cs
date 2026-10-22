@@ -7,5 +7,6 @@ public enum MembershipRole
 {
     Clinician = 1,
     ClinicAdmin = 2,
-    Assistant = 3
+    Assistant = 3,
+    Viewer = 4
 }
