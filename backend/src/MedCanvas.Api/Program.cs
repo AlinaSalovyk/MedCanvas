@@ -23,14 +23,7 @@ builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtSecret) || Encoding.UTF8.GetByteCount(jwtSecret) < 32)
 {
-    if (builder.Environment.IsDevelopment())
-    {
-        jwtSecret = "MedCanvasDevelopmentSecretKeyMustBeAtLeast32BytesLongForHmacSha256Security12345";
-    }
-    else
-    {
-        throw new InvalidOperationException("Fatal security error: 'Jwt:Secret' configuration is missing or shorter than 256 bits (32 bytes). Non-development environments cannot start without an explicitly configured secure key.");
-    }
+    throw new InvalidOperationException("Fatal security error: 'Jwt:Secret' configuration is missing or shorter than 256 bits (32 bytes). All environments (including Development) require an explicitly configured secure signing key (via User Secrets or environment variable).");
 }
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "MedCanvas.Api";
