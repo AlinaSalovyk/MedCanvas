@@ -224,7 +224,21 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
     public async Task SaveOdontogram_WithInvalidJsonOrMissingRootTeeth_Returns400BadRequest()
     {
         // Arrange
-        var client = _factory.CreateAnonymousClient();
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
 
         // Act 1: Invalid JSON syntax
         var resp1 = await client.PutAsJsonAsync($"/api/v1/encounters/{Guid.NewGuid()}/odontogram",
