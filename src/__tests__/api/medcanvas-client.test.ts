@@ -159,6 +159,111 @@ describe("MedCanvasApiClient", () => {
     const result = await client.getEncounterFhirBundle("e-1");
     expect(result).toEqual(fhirBundle);
   });
+
+  it("handles completeEncounter with and without clinicalSummary", async () => {
+    client.setToken("valid-token");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ id: "e-1", status: "Completed" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    // Call with summary
+    await client.completeEncounter("e-1", { clinicalSummary: "Filling finished" });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://localhost:5000/api/v1/encounters/e-1/complete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ clinicalSummary: "Filling finished" }),
+      })
+    );
+
+    // Call without summary
+    await client.completeEncounter("e-1");
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://localhost:5000/api/v1/encounters/e-1/complete",
+      expect.objectContaining({
+        method: "POST",
+        body: undefined,
+      })
+    );
+  });
+
+  it("handles cancelEncounter with and without reason", async () => {
+    client.setToken("valid-token");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ id: "e-1", status: "Cancelled" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    // Call with string reason
+    await client.cancelEncounter("e-1", "Patient cancelled appointment");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://localhost:5000/api/v1/encounters/e-1/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Patient cancelled appointment" }),
+      })
+    );
+
+    // Call with empty body
+    await client.cancelEncounter("e-1");
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://localhost:5000/api/v1/encounters/e-1/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: undefined,
+      })
+    );
+  });
+
+  it("handles finalizeOdontogram passing If-Match header and capturing new ETag", async () => {
+    client.setToken("valid-token");
+
+    const mockResponseDto = {
+      id: "rec-1",
+      clinicId: "c-1",
+      patientId: "p-1",
+      encounterId: "e-1",
+      payloadVersion: "2.22",
+      snapshotJson: "{}",
+      isFinalized: true,
+      concurrencyVersion: 2,
+      createdAtUtc: "2026-10-22T12:00:00Z",
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(mockResponseDto), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ETag: '"2"',
+        },
+      })
+    );
+
+    const result = await client.finalizeOdontogram("e-1", '"1"');
+    expect(result.odontogram.isFinalized).toBe(true);
+    expect(result.etag).toBe('"2"');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://localhost:5000/api/v1/encounters/e-1/odontogram/finalize",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "If-Match": '"1"',
+        }),
+      })
+    );
+  });
 });
 
 let mockStateListener: (() => void) | null = null;

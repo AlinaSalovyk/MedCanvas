@@ -72,6 +72,20 @@ public class DentalEncounterTests
     }
 
     [Fact]
+    public void Complete_WithClinicalSummary_AppendsClinicalSummary()
+    {
+        var encounter = DentalEncounter.Start(_clinicId, _patientId, _attendingUserId, _now, "Complaint", _now);
+        encounter.UpdateNotes("Complaint", "Initial observation notes", _now.AddMinutes(5));
+        var completeTime = _now.AddMinutes(45);
+
+        encounter.Complete(completeTime, "All procedures completed successfully.");
+
+        encounter.Status.Should().Be(EncounterStatus.Completed);
+        encounter.ClinicalNotes.Should().Be("Initial observation notes\nAll procedures completed successfully.");
+        encounter.UpdatedAtUtc.Should().Be(completeTime);
+    }
+
+    [Fact]
     public void Cancel_TransitionsStatusToCancelledAndAppendsReason()
     {
         var encounter = DentalEncounter.Start(_clinicId, _patientId, _attendingUserId, _now, "Complaint", _now);
