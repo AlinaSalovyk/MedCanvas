@@ -43,7 +43,7 @@ public sealed class GetCurrentUserQueryHandler : IRequestHandler<GetCurrentUserQ
             Email: user.Email,
             FullName: user.FullName,
             ClinicId: clinicId,
-            Role: _currentUserContext.Role ?? string.Empty,
+            Role: _currentUserContext.Role?.ToString() ?? string.Empty,
             IsAuthenticated: true);
     }
 }
