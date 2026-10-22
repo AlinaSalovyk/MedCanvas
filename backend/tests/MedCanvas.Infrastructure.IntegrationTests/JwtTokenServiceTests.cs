@@ -36,7 +36,7 @@ public class JwtTokenServiceTests
     {
         var user = User.Create("dr.dentist@example.com", "Dr. Jane Dentist", "hash", _now);
         var clinicId = Guid.NewGuid();
-        var expiresAt = _now.AddHours(2);
+        var expiresAt = DateTime.UtcNow.AddHours(2);
 
         var tokenString = _service.GenerateToken(user, clinicId, MembershipRole.Clinician, expiresAt);
 
