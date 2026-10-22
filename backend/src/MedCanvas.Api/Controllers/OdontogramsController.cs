@@ -117,4 +117,15 @@ public sealed class OdontogramsController : ControllerBase
         var result = await _sender.Send(new GetOdontogramRevisionsQuery(encounterId), cancellationToken);
         return Ok(result);
     }
+
+    [HttpGet("encounters/{encounterId:guid}/fhir")]
+    [Produces("application/fhir+json")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFhirBundle([FromRoute] Guid encounterId, CancellationToken cancellationToken)
+    {
+        var fhirJson = await _sender.Send(new MedCanvas.Application.Features.Fhir.GetEncounterFhirBundleQuery(encounterId), cancellationToken);
+        return Content(fhirJson, "application/fhir+json");
+    }
 }
