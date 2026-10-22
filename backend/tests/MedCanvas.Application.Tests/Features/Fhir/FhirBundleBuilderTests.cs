@@ -105,4 +105,72 @@ public class FhirBundleBuilderTests
         tooth51Condition.Should().NotBeNull();
         tooth51Condition.GetProperty("resource").GetProperty("code").GetProperty("text").GetString().Should().Contain("51");
     }
+
+    [Fact]
+    public void BuildBundle_WithMultiplePlannedInterventionsOnSameTooth_EmitsDistinctServiceRequestsWithoutDropping()
+    {
+        // Finding FHIR-P1-02: Tooth 16 has BOTH planned endo AND planned crown restoration
+        const string multiInterventionPayload = """
+        {
+            "version": "2.22",
+            "teeth": {
+                "16": {
+                    "toothSelection": "tooth-base"
+                }
+            },
+            "plan": {
+                "16": {
+                    "toothSelection": "tooth-base",
+                    "endo": "endo-filling",
+                    "restorationType": "crown",
+                    "restorationMaterial": "zircon",
+                    "fillingSurfaces": ["buccal"]
+                }
+            }
+        }
+        """;
+
+        var record = OdontogramRecord.Create(_clinic.Id, _patient.Id, _encounter.Id, "2.22", multiInterventionPayload, _now);
+
+        var bundleJson = FhirBundleBuilder.BuildBundle(_clinic, _patient, _encounter, record);
+        using var doc = JsonDocument.Parse(bundleJson);
+        var entries = doc.RootElement.GetProperty("entry").EnumerateArray().ToList();
+
+        var serviceRequests = entries
+            .Where(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "ServiceRequest")
+            .Select(e => e.GetProperty("resource"))
+            .ToList();
+
+        // Must emit all 3 distinct planned interventions on Tooth 16 (none silently dropped by else-if)
+        serviceRequests.Should().HaveCount(3);
+
+        // 1. Root canal therapy (234737002)
+        var endoReq = serviceRequests.FirstOrDefault(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "234737002");
+        endoReq.Should().NotBeNull();
+        endoReq!.GetProperty("code").GetProperty("text").GetString().Should().Contain("Planned endodontic treatment on Tooth FDI 16");
+
+        // 2. Crown restoration (281691000)
+        var crownReq = serviceRequests.FirstOrDefault(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "281691000");
+        crownReq.Should().NotBeNull();
+        crownReq!.GetProperty("code").GetProperty("text").GetString().Should().Contain("Planned crown restoration on Tooth FDI 16");
+
+        // 3. Filling restoration (429994000)
+        var fillReq = serviceRequests.FirstOrDefault(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "429994000");
+        fillReq.Should().NotBeNull();
+        fillReq!.GetProperty("code").GetProperty("text").GetString().Should().Contain("Planned dental restoration on Tooth FDI 16");
+    }
+
+    [Fact]
+    public void BuildBundle_WhenSnapshotJsonIsMalformed_ThrowsInvalidOperationExceptionExplicitly()
+    {
+        var record = OdontogramRecord.Create(_clinic.Id, _patient.Id, _encounter.Id, "2.22", "{ malformed json broken", _now);
+
+        var act = () => FhirBundleBuilder.BuildBundle(_clinic, _patient, _encounter, record);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*encounter '{_encounter.Id}'*");
+    }
 }
