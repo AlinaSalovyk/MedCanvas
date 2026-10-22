@@ -131,7 +131,6 @@ export function buildSyntheticFixtures(): Record<string, unknown> {
 
   // 7. Periodontal
   const tPerio = defaultState();
-  // @ts-expect-error perio structure on state
   tPerio.perio = {
     pd: new Map([["MB", 4], ["B", 2], ["DB", 3], ["ML", 3], ["L", 2], ["DL", 4]]),
     gm: new Map([["MB", 1], ["B", 0], ["DB", 0], ["ML", 0], ["L", 0], ["DL", 1]]),
@@ -162,7 +161,6 @@ export function buildSyntheticFixtures(): Record<string, unknown> {
 
   // 9. Plugin custom states
   const tPlugin = defaultState();
-  // @ts-expect-error customStates on state
   tPlugin.customStates = {
     orthoSensorPlugin: {
       forceGrams: 45.5,
