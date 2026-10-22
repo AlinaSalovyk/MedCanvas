@@ -58,3 +58,16 @@ blob-report/
 
 #Notes
 notes
+
+# === .NET / C# / Visual Studio ===
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esults/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.DotSettings.user
+*.nupkg
+*.snupkg
