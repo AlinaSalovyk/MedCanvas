@@ -27,6 +27,10 @@ public static class DependencyInjection
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IEncounterRepository, EncounterRepository>();
 
+        services.AddSingleton<IDateTimeProvider, Services.DateTimeProvider>();
+        services.AddSingleton<IPasswordHasher, Services.PasswordHasher>();
+        services.AddScoped<IJwtTokenService, Services.JwtTokenService>();
+
         return services;
     }
 }
