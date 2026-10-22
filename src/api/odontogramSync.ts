@@ -34,6 +34,7 @@ export class OdontogramSyncBridge {
   private hasPendingEdits = false;
   private pendingChangeSummary?: string;
   private isDisposed = false;
+  private generation = 0;
 
   constructor(options: SyncOptions) {
     this.client = options.client;
@@ -57,7 +58,13 @@ export class OdontogramSyncBridge {
   }
 
   public hasUnsavedChanges(): boolean {
-    return this.currentStatus === "saving" || this.hasPendingEdits || this.saveTimeout !== null;
+    return (
+      this.currentStatus === "saving" ||
+      this.hasPendingEdits ||
+      this.saveTimeout !== null ||
+      this.inFlightPromise !== null ||
+      this.pendingBatchPromise !== null
+    );
   }
 
   private setStatus(status: SyncStatus, error?: Error): void {
@@ -73,9 +80,14 @@ export class OdontogramSyncBridge {
       throw new Error("OdontogramSyncBridge is disposed.");
     }
 
+    const gen = this.generation;
     this.setStatus("loading");
     try {
       const { odontogram, etag } = await this.client.getOdontogramByEncounter(this.encounterId);
+      if (this.isDisposed || gen !== this.generation) {
+        return;
+      }
+
       this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
       this.currentVersion = odontogram.concurrencyVersion;
 
@@ -90,6 +102,9 @@ export class OdontogramSyncBridge {
 
       this.setStatus("saved");
     } catch (err: unknown) {
+      if (this.isDisposed || gen !== this.generation) {
+        return;
+      }
       const error = err instanceof Error ? err : new Error(String(err));
       this.setStatus("error", error);
       throw error;
@@ -98,19 +113,29 @@ export class OdontogramSyncBridge {
 
   /**
    * Safely switch to another encounter. Flushes any pending edits first, then reloads.
+   * If save fails or encounters a conflict, the switch is BLOCKED to prevent clinical data loss.
    */
   public async switchEncounter(newEncounterId: string): Promise<void> {
+    if (this.isDisposed) {
+      throw new Error("OdontogramSyncBridge is disposed.");
+    }
+
     if (this.encounterId === newEncounterId) {
       return;
     }
 
-    // Flush any pending unsaved work for current encounter before switching
+    // Flush any pending unsaved work for current encounter before switching.
+    // If save fails, we must NOT switch encounters or discard edits.
     if (this.hasUnsavedChanges()) {
-      await this.save("Auto-save prior to encounter switch").catch(() => {
-        // Continue switch even if save encountered an error
-      });
+      await this.save("Auto-save prior to encounter switch");
+
+      while (this.hasUnsavedChanges()) {
+        await this.save("Auto-save queued edits prior to encounter switch");
+      }
     }
 
+    // Previous encounter successfully saved. Advance generation and switch.
+    this.generation++;
     this.encounterId = newEncounterId;
     this.currentETag = null;
     this.currentVersion = 1;
@@ -161,6 +186,7 @@ export class OdontogramSyncBridge {
    */
   public destroy(): void {
     this.isDisposed = true;
+    this.generation++;
     this.stopAutoSync();
   }
 
@@ -221,13 +247,16 @@ export class OdontogramSyncBridge {
 
     this.setStatus("saving");
 
+    const gen = this.generation;
+    const saveEncounterId = this.encounterId;
+
     const executeSave = async (): Promise<OdontogramResponseDto> => {
       try {
         const currentChart = getStatusChart();
         const snapshotJson = JSON.stringify(currentChart);
 
         const { odontogram, etag } = await this.client.saveOdontogram(
-          this.encounterId,
+          saveEncounterId,
           {
             snapshotJson,
             expectedVersion: this.currentVersion,
@@ -236,7 +265,7 @@ export class OdontogramSyncBridge {
           this.currentETag
         );
 
-        if (this.isDisposed) {
+        if (this.isDisposed || gen !== this.generation || saveEncounterId !== this.encounterId) {
           return odontogram;
         }
 
@@ -245,6 +274,13 @@ export class OdontogramSyncBridge {
         this.setStatus("saved");
         return odontogram;
       } catch (err: unknown) {
+        if (this.isDisposed || gen !== this.generation || saveEncounterId !== this.encounterId) {
+          throw err;
+        }
+
+        // Retain dirty state on save failure so user edits are not lost
+        this.hasPendingEdits = true;
+
         if (err instanceof ConcurrencyConflictError) {
           this.setStatus("conflict", err);
           this.stopAutoSync(); // Halt background saves
