@@ -31,7 +31,6 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, Services.DateTimeProvider>();
         services.AddSingleton<IPasswordHasher, Services.PasswordHasher>();
         services.AddScoped<IJwtTokenService, Services.JwtTokenService>();
-        services.AddScoped<ICurrentUserContext, Services.CurrentUserContext>();
 
         return services;
     }
