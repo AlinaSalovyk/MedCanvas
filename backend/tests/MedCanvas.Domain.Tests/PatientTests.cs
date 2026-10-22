@@ -194,4 +194,28 @@ public class PatientTests
         patient.Activate(_now.AddHours(2));
         patient.IsActive.Should().BeTrue();
     }
+
+    [Fact]
+    public void CreateWithId_SetsPropertiesExplicitly()
+    {
+        var id = Guid.NewGuid();
+        var patient = Patient.CreateWithId(
+            id,
+            _clinicId,
+            "John",
+            "Doe",
+            new DateOnly(1980, 5, 20),
+            "Male",
+            "+12345",
+            null,
+            "MRN-999",
+            null,
+            _now);
+
+        patient.Id.Should().Be(id);
+        patient.ClinicId.Should().Be(_clinicId);
+        patient.FirstName.Should().Be("John");
+        patient.Email.Should().BeNull();
+    }
 }
+
