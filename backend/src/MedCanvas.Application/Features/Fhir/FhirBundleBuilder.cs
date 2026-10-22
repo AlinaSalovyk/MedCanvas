@@ -253,6 +253,7 @@ public static class FhirBundleBuilder
             }
 
             // 5. Planned Interventions as FHIR ServiceRequests (intent = "plan")
+            // Evaluates each planned clinical intervention independently (avoiding mutually exclusive else-if dropping)
             if (root.TryGetProperty("plan", out var planEl) && planEl.ValueKind == JsonValueKind.Object)
             {
                 foreach (var planToothProp in planEl.EnumerateObject())
@@ -265,103 +266,73 @@ public static class FhirBundleBuilder
                         continue;
                     }
 
-                    bool isPlanned = false;
-                    string snomedCode = "281691000";
-                    string snomedDisplay = "Dental procedure";
-                    string procedureText = $"Planned dental intervention on Tooth FDI {toothFdi}";
-
-                    if (planData.TryGetProperty("planRestoration", out var planRestEl))
+                    // 5a. Planned Endodontics
+                    if (planData.TryGetProperty("endo", out var pEndo) &&
+                        pEndo.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(pEndo.GetString()) &&
+                        pEndo.GetString() != "none")
                     {
-                        isPlanned = true;
-                        procedureText = $"Planned dental restoration on Tooth FDI {toothFdi}";
-                    }
-                    else if (planData.TryGetProperty("restorationType", out var pRestType) &&
-                             pRestType.ValueKind == JsonValueKind.String &&
-                             pRestType.GetString() != "none")
-                    {
-                        isPlanned = true;
-                        procedureText = $"Planned {pRestType.GetString()} restoration on Tooth FDI {toothFdi}";
-                    }
-                    else if (planData.TryGetProperty("fillingSurfaces", out var pFillSurfaces) &&
-                             pFillSurfaces.ValueKind == JsonValueKind.Array &&
-                             pFillSurfaces.GetArrayLength() > 0)
-                    {
-                        isPlanned = true;
-                        procedureText = $"Planned dental restoration on Tooth FDI {toothFdi}";
-                    }
-                    else if (planData.TryGetProperty("extractionPlan", out var pExtract) &&
-                             pExtract.ValueKind == JsonValueKind.True)
-                    {
-                        isPlanned = true;
-                        snomedCode = "234323000";
-                        snomedDisplay = "Extraction of tooth";
-                        procedureText = $"Planned dental extraction on Tooth FDI {toothFdi}";
-                    }
-                    else if (planData.TryGetProperty("endo", out var pEndo) &&
-                             pEndo.ValueKind == JsonValueKind.String &&
-                             pEndo.GetString() != "none")
-                    {
-                        isPlanned = true;
-                        snomedCode = "234737002";
-                        snomedDisplay = "Root canal therapy";
-                        procedureText = $"Planned endodontic treatment on Tooth FDI {toothFdi}";
+                        var endoVal = pEndo.GetString();
+                        entries.Add(CreateServiceRequestEntry(
+                            patient.Id, encounter.Id, toothFdi,
+                            snomedCode: "234737002",
+                            snomedDisplay: "Root canal therapy",
+                            procedureText: $"Planned endodontic treatment on Tooth FDI {toothFdi} ({endoVal})"));
                     }
 
-                    if (isPlanned)
+                    // 5b. Planned Restorations (Crown / Inlay / Onlay / Veneer / Bridge)
+                    if (planData.TryGetProperty("restorationType", out var pRestType) &&
+                        pRestType.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(pRestType.GetString()) &&
+                        pRestType.GetString() != "none")
                     {
-                        entries.Add(new JsonObject
-                        {
-                            ["fullUrl"] = $"urn:uuid:{Guid.NewGuid()}",
-                            ["resource"] = new JsonObject
-                            {
-                                ["resourceType"] = "ServiceRequest",
-                                ["status"] = "active",
-                                ["intent"] = "plan",
-                                ["subject"] = new JsonObject
-                                {
-                                    ["reference"] = $"urn:uuid:{patient.Id}"
-                                },
-                                ["encounter"] = new JsonObject
-                                {
-                                    ["reference"] = $"urn:uuid:{encounter.Id}"
-                                },
-                                ["code"] = new JsonObject
-                                {
-                                    ["coding"] = new JsonArray
-                                    {
-                                        new JsonObject
-                                        {
-                                            ["system"] = "http://snomed.info/sct",
-                                            ["code"] = snomedCode,
-                                            ["display"] = snomedDisplay
-                                        }
-                                    },
-                                    ["text"] = procedureText
-                                },
-                                ["bodySite"] = new JsonArray
-                                {
-                                    new JsonObject
-                                    {
-                                        ["coding"] = new JsonArray
-                                        {
-                                            new JsonObject
-                                            {
-                                                ["system"] = "http://fdi.org/iso3950",
-                                                ["code"] = toothFdi,
-                                                ["display"] = $"Tooth {toothFdi}"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        });
+                        var restType = pRestType.GetString();
+                        entries.Add(CreateServiceRequestEntry(
+                            patient.Id, encounter.Id, toothFdi,
+                            snomedCode: "281691000",
+                            snomedDisplay: "Dental procedure",
+                            procedureText: $"Planned {restType} restoration on Tooth FDI {toothFdi}"));
+                    }
+                    else if (planData.TryGetProperty("planRestoration", out var planRestEl) &&
+                             planRestEl.ValueKind != JsonValueKind.Null &&
+                             planRestEl.ValueKind != JsonValueKind.False)
+                    {
+                        entries.Add(CreateServiceRequestEntry(
+                            patient.Id, encounter.Id, toothFdi,
+                            snomedCode: "281691000",
+                            snomedDisplay: "Dental procedure",
+                            procedureText: $"Planned dental restoration on Tooth FDI {toothFdi}"));
+                    }
+
+                    // 5c. Planned Fillings
+                    if (planData.TryGetProperty("fillingSurfaces", out var pFillSurfaces) &&
+                        pFillSurfaces.ValueKind == JsonValueKind.Array &&
+                        pFillSurfaces.GetArrayLength() > 0)
+                    {
+                        entries.Add(CreateServiceRequestEntry(
+                            patient.Id, encounter.Id, toothFdi,
+                            snomedCode: "429994000",
+                            snomedDisplay: "Restoration of tooth",
+                            procedureText: $"Planned dental restoration on Tooth FDI {toothFdi}"));
+                    }
+
+                    // 5d. Planned Extraction
+                    if (planData.TryGetProperty("extractionPlan", out var pExtract) &&
+                        (pExtract.ValueKind == JsonValueKind.True ||
+                         (pExtract.ValueKind == JsonValueKind.String && bool.TryParse(pExtract.GetString(), out var bExt) && bExt)))
+                    {
+                        entries.Add(CreateServiceRequestEntry(
+                            patient.Id, encounter.Id, toothFdi,
+                            snomedCode: "234323000",
+                            snomedDisplay: "Extraction of tooth",
+                            procedureText: $"Planned dental extraction on Tooth FDI {toothFdi}"));
                     }
                 }
             }
         }
-        catch
+        catch (JsonException ex)
         {
-            // Fallback gracefully on unparseable tooth data
+            throw new InvalidOperationException($"Failed to parse snapshot JSON for encounter '{encounter.Id}': {ex.Message}", ex);
         }
 
         var bundle = new JsonObject
@@ -450,6 +421,62 @@ public static class FhirBundleBuilder
                 ["encounter"] = new JsonObject
                 {
                     ["reference"] = $"urn:uuid:{encounterId}"
+                }
+            }
+        };
+    }
+
+    private static JsonObject CreateServiceRequestEntry(
+        Guid patientId,
+        Guid encounterId,
+        string toothFdi,
+        string snomedCode,
+        string snomedDisplay,
+        string procedureText)
+    {
+        return new JsonObject
+        {
+            ["fullUrl"] = $"urn:uuid:{Guid.NewGuid()}",
+            ["resource"] = new JsonObject
+            {
+                ["resourceType"] = "ServiceRequest",
+                ["status"] = "active",
+                ["intent"] = "plan",
+                ["subject"] = new JsonObject
+                {
+                    ["reference"] = $"urn:uuid:{patientId}"
+                },
+                ["encounter"] = new JsonObject
+                {
+                    ["reference"] = $"urn:uuid:{encounterId}"
+                },
+                ["code"] = new JsonObject
+                {
+                    ["coding"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["system"] = "http://snomed.info/sct",
+                            ["code"] = snomedCode,
+                            ["display"] = snomedDisplay
+                        }
+                    },
+                    ["text"] = procedureText
+                },
+                ["bodySite"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["coding"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["system"] = "http://fdi.org/iso3950",
+                                ["code"] = toothFdi,
+                                ["display"] = $"Tooth {toothFdi}"
+                            }
+                        }
+                    }
                 }
             }
         };
