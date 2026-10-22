@@ -15,8 +15,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.NewGuid(),
             SnapshotJson: """{"version":"2.22","teeth":{}}""",
-            ChangeSummary: "Updated caries findings",
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: "Updated caries findings");
 
         var result = _validator.TestValidate(command);
 
@@ -29,8 +29,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.Empty,
             SnapshotJson: """{"version":"2.22","teeth":{}}""",
-            ChangeSummary: null,
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: null);
 
         var result = _validator.TestValidate(command);
 
@@ -47,8 +47,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.NewGuid(),
             SnapshotJson: invalidJson!,
-            ChangeSummary: null,
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: null);
 
         var result = _validator.TestValidate(command);
 
@@ -61,8 +61,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.NewGuid(),
             SnapshotJson: "not a json string",
-            ChangeSummary: null,
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: null);
 
         var result = _validator.TestValidate(command);
 
@@ -79,8 +79,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.NewGuid(),
             SnapshotJson: incompleteJson,
-            ChangeSummary: null,
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: null);
 
         var result = _validator.TestValidate(command);
 
@@ -94,8 +94,8 @@ public class SaveOdontogramCommandValidatorTests
         var command = new SaveOdontogramCommand(
             EncounterId: Guid.NewGuid(),
             SnapshotJson: """{"version":"2.22","teeth":{}}""",
-            ChangeSummary: new string('a', 501),
-            IfMatchETag: null);
+            ExpectedVersion: null,
+            ChangeSummary: new string('a', 501));
 
         var result = _validator.TestValidate(command);
 
