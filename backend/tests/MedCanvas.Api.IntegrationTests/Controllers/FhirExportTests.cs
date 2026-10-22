@@ -116,16 +116,17 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
 
         var userA = User.Create("dr.a@clinica.com", "Dr. A", "hash", now);
         var membershipA = ClinicMembership.Create(clinicA.Id, userA.Id, MembershipRole.Clinician, now);
+        var userB = User.Create("dr.b@clinicb.com", "Dr. B", "hash", now);
 
         var patientB = Patient.Create(clinicB.Id, "Patient", "B", null, null, null, null, "MRN-B", null, now);
-        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, Guid.NewGuid(), now, "Exam", now);
+        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, userB.Id, now, "Exam", now);
         var recordB = OdontogramRecord.Create(clinicB.Id, patientB.Id, encounterB.Id, "2.22", SampleDentalPayload, now);
 
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
             db.Clinics.AddRange(clinicA, clinicB);
-            db.Users.Add(userA);
+            db.Users.AddRange(userA, userB);
             db.ClinicMemberships.Add(membershipA);
             db.Patients.Add(patientB);
             db.DentalEncounters.Add(encounterB);
