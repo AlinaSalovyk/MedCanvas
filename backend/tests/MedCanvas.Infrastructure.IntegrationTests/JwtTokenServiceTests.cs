@@ -54,4 +54,33 @@ public class JwtTokenServiceTests
         token.Claims.First(c => c.Type == ClaimTypes.Role).Value.Should().Be("Clinician");
         token.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Jti);
     }
+
+    [Fact]
+    public void GenerateToken_WhenSecretIsMissing_ThrowsInvalidOperationException()
+    {
+        var emptyConfig = new ConfigurationBuilder().Build();
+        var service = new JwtTokenService(emptyConfig);
+        var user = User.Create("dr.dentist@example.com", "Dr. Jane Dentist", "hash", _now);
+
+        var act = () => service.GenerateToken(user, Guid.NewGuid(), MembershipRole.Clinician, DateTime.UtcNow.AddHours(1));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*missing or shorter than 256 bits*");
+    }
+
+    [Fact]
+    public void GenerateToken_WhenSecretIsShorterThan32Bytes_ThrowsInvalidOperationException()
+    {
+        var shortConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { { "Jwt:Secret", "short-secret-key-too-short" } })
+            .Build();
+        var service = new JwtTokenService(shortConfig);
+        var user = User.Create("dr.dentist@example.com", "Dr. Jane Dentist", "hash", _now);
+
+        var act = () => service.GenerateToken(user, Guid.NewGuid(), MembershipRole.Clinician, DateTime.UtcNow.AddHours(1));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*missing or shorter than 256 bits*");
+    }
 }
+
