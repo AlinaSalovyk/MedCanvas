@@ -34,9 +34,9 @@ This document establishes the verified schema, clinical invariants, serializatio
 
 | Field | Type | Mandatory? | Description |
 |---|---|---|---|
-| `version` | `string` | **Yes** | Payload schema version. Current is `"2.22"`. Backend accepts versions `>= "2.3.0"`. |
+| `version` | `string` | **Yes** | Payload schema version. Current is `"2.22"`. Backend accepts versions `<= "2.22"`, rejecting future unsupported versions (e.g. `"3.0"`), while supporting legacy migrations down to `"1.4"`. |
 | `globals` | `object` | **Yes** | Global UI and chart display toggles (`wisdomVisible`, `showBase`, `occlusalVisible`, `showHealthyPulp`, `edentulous`). |
-| `teeth` | `Record<string, ToothRecord>` | **Yes** | Map of 32 permanent FDI tooth keys (`"18"` to `"48"`). Represents current clinical examination findings (**Status**). |
+| `teeth` | `Record<string, ToothRecord>` | **Yes** | Map of permanent FDI tooth keys (`"18"` to `"48"`) or primary teeth (`"51"` to `"85"`). Represents current clinical examination findings (**Status**). |
 | `case` | `CaseMetaRecord` | No | Omitted when all case metadata is at defaults (`caseMetaIsEmpty(caseMeta) == true`). Present when demographics, periodontal risk factors, or case conditions are charted. |
 | `plan` | `Record<string, ToothRecord>` | No | Omitted when treatment planning is uninitialized or identical to Status. Present when planned interventions differ from Status findings. |
 
@@ -180,6 +180,10 @@ Serialized only when non-empty (`caseMetaIsEmpty == false`):
 ---
 
 ## 7. Machine-Readable Synthetic Contract Fixtures
+
+All valid canonical fixtures are generated directly by frontend `serializeState()` and `defaultState()` via `npm run fixtures:generate` (`src/__tests__/parity/canonical-fixtures.ts`).
+The output is stored in `backend/tests/MedCanvas.Tests.Data/Fixtures/generated/` and consumed by C# tests via `ClinicalPayloadFixtures.cs`.
+Automated drift detection in `src/__tests__/parity/canonical-fixtures.test.ts` guarantees byte-for-byte fidelity with frontend serialization.
 
 ### Fixture 1: Minimal Sound 32-Tooth Chart (Default Initialization)
 
