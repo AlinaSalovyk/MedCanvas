@@ -9,8 +9,7 @@ namespace MedCanvas.Tests.Common;
 /// </summary>
 public sealed class PostgreSqlFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("medcanvas_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
