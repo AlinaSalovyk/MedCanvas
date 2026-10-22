@@ -36,6 +36,10 @@ export class OdontogramSyncBridge {
   private isDisposed = false;
   private generation = 0;
 
+  // Revision tracking for accurate dirty/saved state
+  private localRevision = 0;
+  private savedRevision = 0;
+
   constructor(options: SyncOptions) {
     this.client = options.client;
     this.encounterId = options.encounterId;
@@ -58,7 +62,11 @@ export class OdontogramSyncBridge {
   }
 
   public hasUnsavedChanges(): boolean {
+    if (this.isDisposed) {
+      return false;
+    }
     return (
+      this.localRevision > this.savedRevision ||
       this.currentStatus === "saving" ||
       this.hasPendingEdits ||
       this.saveTimeout !== null ||
@@ -74,10 +82,17 @@ export class OdontogramSyncBridge {
 
   /**
    * Load the remote odontogram snapshot for this encounter and hydrate into the engine.
+   * Safety guardrail: will not silently overwrite unsaved local changes.
    */
   public async load(): Promise<void> {
     if (this.isDisposed) {
       throw new Error("OdontogramSyncBridge is disposed.");
+    }
+
+    if (this.hasUnsavedChanges()) {
+      throw new Error(
+        "Cannot load remote encounter while unsaved changes exist for the active encounter. Save or discard changes first."
+      );
     }
 
     const gen = this.generation;
@@ -88,17 +103,28 @@ export class OdontogramSyncBridge {
         return;
       }
 
-      this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
-      this.currentVersion = odontogram.concurrencyVersion;
+      if (odontogram.encounterId !== this.encounterId) {
+        throw new Error(
+          `Encounter mismatch: requested '${this.encounterId}', received snapshot for '${odontogram.encounterId}'.`
+        );
+      }
+
+      // Parse JSON before touching any bridge metadata or chart
+      const parsed = JSON.parse(odontogram.snapshotJson);
 
       // Hydrate into odontogram engine without triggering autoSave cycle
       this.isHydrating = true;
       try {
-        const parsed = JSON.parse(odontogram.snapshotJson);
         importStatus(parsed);
       } finally {
         this.isHydrating = false;
       }
+
+      this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
+      this.currentVersion = odontogram.concurrencyVersion;
+      this.localRevision = 0;
+      this.savedRevision = 0;
+      this.hasPendingEdits = false;
 
       this.setStatus("saved");
     } catch (err: unknown) {
@@ -112,20 +138,36 @@ export class OdontogramSyncBridge {
   }
 
   /**
-   * Safely switch to another encounter. Flushes any pending edits first, then reloads.
-   * If save fails or encounters a conflict, the switch is BLOCKED to prevent clinical data loss.
+   * Safely switch to another encounter using an atomic two-phase protocol:
+   * Phase A (Prepare):
+   *   1. Flushes pending edits for current encounter.
+   *   2. Fetches target encounter snapshot into local variables WITHOUT mutating active encounter state.
+   *   3. Validates target snapshot ownership and parses snapshot JSON.
+   * Phase B (Commit):
+   *   4. Hydrates target snapshot with rollback safety.
+   *   5. Atomically commits target encounter identity and concurrency metadata.
+   * If any step in Phase A fails, active encounter identity, chart, and metadata remain untouched.
    */
   public async switchEncounter(newEncounterId: string): Promise<void> {
     if (this.isDisposed) {
       throw new Error("OdontogramSyncBridge is disposed.");
     }
 
+    if (!newEncounterId || typeof newEncounterId !== "string") {
+      throw new Error("Target encounter ID is required.");
+    }
+
     if (this.encounterId === newEncounterId) {
       return;
     }
 
-    // Flush any pending unsaved work for current encounter before switching.
-    // If save fails, we must NOT switch encounters or discard edits.
+    if (this.currentStatus === "conflict") {
+      throw new Error("Cannot switch encounter while concurrency conflict is active. Resolve conflict first.");
+    }
+
+    // Phase A: PREPARE
+    // 1. Flush any pending unsaved work for current encounter before switching.
+    // If save fails or conflict occurs, the switch is REJECTED and active encounter remains unchanged.
     if (this.hasUnsavedChanges()) {
       await this.save("Auto-save prior to encounter switch");
 
@@ -134,13 +176,54 @@ export class OdontogramSyncBridge {
       }
     }
 
-    // Previous encounter successfully saved. Advance generation and switch.
-    this.generation++;
+    // Token for this switch attempt to disarm stale async responses
+    const switchGen = ++this.generation;
+
+    // 2. Fetch target encounter snapshot WITHOUT mutating active encounter state
+    const { odontogram, etag } = await this.client.getOdontogramByEncounter(newEncounterId);
+
+    if (this.isDisposed || switchGen !== this.generation) {
+      return;
+    }
+
+    // 3. Verify target payload belongs to the requested encounter (anti cross-patient corruption)
+    if (odontogram.encounterId !== newEncounterId) {
+      throw new Error(
+        `Cross-patient isolation breach: requested encounter '${newEncounterId}', received payload for '${odontogram.encounterId}'.`
+      );
+    }
+
+    // 4. Validate snapshot JSON before touching the active chart
+    const parsedTarget = JSON.parse(odontogram.snapshotJson);
+
+    // Capture rollback snapshot of active chart in case hydration throws
+    const chartRollback = getStatusChart();
+
+    // Phase B: COMMIT
+    this.isHydrating = true;
+    try {
+      importStatus(parsedTarget);
+    } catch (hydrateErr: unknown) {
+      try {
+        importStatus(chartRollback);
+      } catch {
+        // Rollback failed; retain error status
+      }
+      const error = hydrateErr instanceof Error ? hydrateErr : new Error(String(hydrateErr));
+      this.setStatus("error", error);
+      throw error;
+    } finally {
+      this.isHydrating = false;
+    }
+
+    // Commit identity, concurrency metadata, and reset revisions as one logical operation
     this.encounterId = newEncounterId;
-    this.currentETag = null;
-    this.currentVersion = 1;
+    this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
+    this.currentVersion = odontogram.concurrencyVersion;
+    this.localRevision = 0;
+    this.savedRevision = 0;
     this.hasPendingEdits = false;
-    await this.load();
+    this.setStatus("saved");
   }
 
   /**
@@ -161,6 +244,7 @@ export class OdontogramSyncBridge {
         return;
       }
 
+      this.localRevision++;
       this.hasPendingEdits = true;
       this.scheduleSave();
     });
@@ -241,6 +325,10 @@ export class OdontogramSyncBridge {
       return this.pendingBatchPromise;
     }
 
+    if (this.localRevision === this.savedRevision) {
+      this.localRevision++;
+    }
+    const revisionToSave = this.localRevision;
     this.hasPendingEdits = false;
     const summaryToUse = this.pendingChangeSummary;
     this.pendingChangeSummary = undefined;
@@ -271,7 +359,18 @@ export class OdontogramSyncBridge {
 
         this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
         this.currentVersion = odontogram.concurrencyVersion;
-        this.setStatus("saved");
+        this.savedRevision = Math.max(this.savedRevision, revisionToSave);
+
+        // Check whether newer local edits arrived while the save was in-flight
+        if (this.localRevision > this.savedRevision || this.hasPendingEdits || this.saveTimeout !== null) {
+          this.hasPendingEdits = true;
+          if (!this.pendingBatchPromise && this.saveTimeout === null) {
+            this.scheduleSave();
+          }
+        } else {
+          this.setStatus("saved");
+        }
+
         return odontogram;
       } catch (err: unknown) {
         if (this.isDisposed || gen !== this.generation || saveEncounterId !== this.encounterId) {
