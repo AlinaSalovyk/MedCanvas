@@ -115,4 +115,25 @@ public class DentalEncounterTests
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*Cancelled*");
     }
+
+    [Fact]
+    public void CreateWithId_SetsPropertiesExplicitly()
+    {
+        var id = Guid.NewGuid();
+        var enc = DentalEncounter.CreateWithId(
+            id,
+            _clinicId,
+            _patientId,
+            _attendingUserId,
+            _now,
+            "Chief complaint",
+            _now);
+
+        enc.Id.Should().Be(id);
+        enc.ClinicId.Should().Be(_clinicId);
+        enc.PatientId.Should().Be(_patientId);
+        enc.AttendingUserId.Should().Be(_attendingUserId);
+        enc.Status.Should().Be(EncounterStatus.InProgress);
+    }
 }
+
