@@ -134,7 +134,7 @@ export class OdontogramSyncBridge {
     this.setStatus("saving");
 
     try {
-      const currentChart = getStatusChart({ includePlan: true });
+      const currentChart = getStatusChart();
       const snapshotJson = JSON.stringify(currentChart);
 
       const { odontogram, etag } = await this.client.saveOdontogram(
