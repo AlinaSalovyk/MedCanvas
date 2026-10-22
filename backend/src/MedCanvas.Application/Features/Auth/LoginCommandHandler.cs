@@ -58,8 +58,8 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             throw new ForbiddenAccessException("User has no active membership in the specified clinic.");
         }
 
-        var token = _jwtTokenService.GenerateToken(user, membership);
         var expiresAtUtc = DateTime.UtcNow.AddMinutes(480);
+        var token = _jwtTokenService.GenerateToken(user, clinic.Id, membership.Role, expiresAtUtc);
 
         return new LoginResponseDto(
             Token: token,
