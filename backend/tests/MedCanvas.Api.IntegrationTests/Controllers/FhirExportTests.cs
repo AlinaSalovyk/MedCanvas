@@ -87,7 +87,7 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
         root.GetProperty("type").GetString().Should().Be("collection");
 
         var entries = root.GetProperty("entry").EnumerateArray().ToList();
-        entries.Should().HaveCountGreaterOrEqualTo(4);
+        entries.Should().HaveCountGreaterThanOrEqualTo(4);
 
         // Verify Organization entry
         var orgEntry = entries.First(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "Organization");
