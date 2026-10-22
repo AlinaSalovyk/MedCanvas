@@ -120,3 +120,19 @@ For every implemented vertical slice (e.g. Patients, Encounters, Odontograms):
    dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
    ```
 4. **Zero Skipped or Ignored Tests**: Never commit commented-out or skipped tests without explicit documented justification.
+
+---
+
+## 6. Persistent Verification & Quality Invariants
+
+All future agents modifying or adding backend code MUST adhere strictly to the following rules:
+
+1. **Every New Feature Requires Tests**: No feature is complete without accompanying Domain, Application, and API integration tests.
+2. **Every Bug Fix Requires Regression Coverage**: Every defect resolved must have a dedicated test reproducing the initial defect and proving the fix (RED -> GREEN).
+3. **Clinical Invariants Require Multi-Layer Tests**: Clinical rules (FDI tooth ranges 11-48, caries surfaces, restoration constraints, dual-state separation) must be tested at both Domain and Validator/Integration layers.
+4. **Authorization Must Be Tested with Real HTTP Calls**: Do not rely on mocked authorization handlers or unit test assertions alone. Test real HTTP requests through `WebApplicationFactory` with authorized, unauthorized, revoked, expired, and wrong-clinic identities.
+5. **Persistence Must Be Tested Against PostgreSQL**: Never use EF Core InMemory provider to validate schema or queries. Test all migrations, concurrency tokens, unique indexes, and JSONB queries against real PostgreSQL via Testcontainers (`postgres:16-alpine`).
+6. **Frontend/Backend Contracts Must Remain Synchronized**: Any route, query parameter, DTO shape, ETag precondition, or payload version change must be reflected in both backend controllers and `src/api/client.ts`.
+7. **CI Must Pass Before Approval**: Never approve a pull request or merge when automated GitHub Actions CI is red, queued, or failing.
+8. **Tests Cannot Be Deleted or Weakened to Hide Bugs**: Removing tests or relaxing assertions to mask underlying bugs or schema mismatches is strictly forbidden.
+9. **Actual Test Results Must Be Reported**: Always report actual test execution numbers directly from the test runner output, not estimated or assumed counts. Future agents must read this skill before touching backend code.
