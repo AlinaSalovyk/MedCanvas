@@ -7,7 +7,7 @@ using MedCanvas.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
-namespace MedCanvas.Application.Tests;
+namespace MedCanvas.Infrastructure.IntegrationTests;
 
 public class JwtTokenServiceTests
 {
