@@ -151,8 +151,10 @@ npx playwright test --workers=2
 1. **Frontend Remains Standalone**: The frontend must continue to function offline in local/demonstration mode using `src/persistence.ts` LocalStorage fallback.
 2. **Canonical Contract**: All network serialization must use the canonical schema defined in `src/state/payload.ts` (`serializeState` / `hydrateState`) or standardized HL7® FHIR® R4 Bundles (`src/fhir/toFhir.ts`).
 3. **No Direct DOM or React State Binding in API Adapters**: API client adapters must communicate exclusively with `src/odontogram.ts` via state change subscriptions (`onStateChange`) and exported setters/getters.
-4. **Optimistic Locking**: The backend database enforces revision/concurrency tokens (`ConcurrencyVersion` / ETag) matching the odontogram payload version to prevent concurrent clinical overwrite.
-5. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) and [`docs/backend/reference-audit.md`](./docs/backend/reference-audit.md).
+4. **Optimistic Locking & Concurrency Preconditions**: The backend database enforces concurrency tokens (`ConcurrencyVersion` / ETag) matching the odontogram payload version. Updates to existing clinical records MUST supply an `If-Match: "W/\"<version>\""` header matching the body `expectedVersion`. Missing preconditions return `428 Precondition Required`, version mismatches return `412 Precondition Failed`, and malformed ETags return `400 Bad Request`.
+5. **Membership Authorization & Revocation**: Endpoints enforce role-based authorization policies backed by live database verification (`ActiveClinicMembershipHandler`). Revoked or deactivated memberships fail closed immediately, preventing unauthorized clinical mutations even with previously issued JWTs.
+6. **Autosave Race-Condition Safety**: `OdontogramSyncBridge` uses a serialized queue and state machine ensuring at most one write in-flight, queued pending changes, clean conflict handling on 412, and zero silent data overwrites.
+7. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) and [`docs/backend/reference-audit.md`](./docs/backend/reference-audit.md).
 
 ---
 
@@ -180,7 +182,7 @@ dotnet build backend/MedCanvas.sln --configuration Release
 # Code Formatting Verification
 dotnet format backend/MedCanvas.sln --verify-no-changes
 
-# Full Automated Test Suite with Code Coverage (186 tests passing, 0 failed)
+# Full Automated Test Suite with Code Coverage (217 tests passing, 0 failed)
 dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
 ```
 
