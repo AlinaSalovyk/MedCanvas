@@ -99,9 +99,15 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
         SetUpdatedTimestamp(utcNow);
     }
 
-    public void Complete(DateTime utcNow)
+    public void Complete(DateTime utcNow, string? clinicalSummary = null)
     {
         EnsureNotFinished();
+        if (!string.IsNullOrWhiteSpace(clinicalSummary))
+        {
+            ClinicalNotes = string.IsNullOrWhiteSpace(ClinicalNotes)
+                ? clinicalSummary.Trim()
+                : $"{ClinicalNotes}\n{clinicalSummary.Trim()}";
+        }
         Status = EncounterStatus.Completed;
         SetUpdatedTimestamp(utcNow);
     }

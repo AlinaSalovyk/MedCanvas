@@ -3,6 +3,7 @@ using MedCanvas.Application.Features.Encounters;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace MedCanvas.Api.Controllers;
 
@@ -67,10 +68,10 @@ public sealed class DentalEncountersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Complete(
         [FromRoute] Guid id,
-        [FromBody] CompleteEncounterRequest? request,
-        CancellationToken cancellationToken)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CompleteEncounterRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _sender.Send(new CompleteEncounterCommand(id), cancellationToken);
+        var result = await _sender.Send(new CompleteEncounterCommand(id, request?.ClinicalSummary), cancellationToken);
         return Ok(result);
     }
 
@@ -83,8 +84,8 @@ public sealed class DentalEncountersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Cancel(
         [FromRoute] Guid id,
-        [FromBody] CancelEncounterRequest? request,
-        CancellationToken cancellationToken)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CancelEncounterRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
         var reason = !string.IsNullOrWhiteSpace(request?.Reason) ? request.Reason : "Encounter cancelled";
         var result = await _sender.Send(new CancelEncounterCommand(id, reason), cancellationToken);
