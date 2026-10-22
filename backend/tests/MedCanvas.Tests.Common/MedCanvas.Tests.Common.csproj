@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MedCanvas.Domain\MedCanvas.Domain.csproj" />
@@ -10,6 +10,7 @@
     <PackageReference Include="NSubstitute" Version="6.2.0" />
     <PackageReference Include="Respawn" Version="7.0.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
   </ItemGroup>
 
   <PropertyGroup>
