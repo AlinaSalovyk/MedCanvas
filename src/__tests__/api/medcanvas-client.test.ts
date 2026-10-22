@@ -288,6 +288,8 @@ describe("OdontogramSyncBridge", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockImportStatus.mockClear();
+    mockGetStatusChart.mockClear();
     mockStateListener = null;
     mockGetStatusChart.mockReturnValue({ version: "2.22", teeth: {} });
     client = new MedCanvasApiClient({ baseUrl: "http://localhost:5000/api/v1" });
@@ -639,6 +641,331 @@ describe("OdontogramSyncBridge", () => {
     expect(bridge.hasUnsavedChanges()).toBe(false);
 
     await expect(bridge.save()).rejects.toThrow("disposed");
+  });
+
+  // =========================================================================
+  // SYNC-P0-02 & SYNC-P1-02 CLINICAL SAFETY REGRESSION TESTS
+  // =========================================================================
+
+  it("CRITICAL P0: Patient A saved successfully -> Patient B loading fails -> subsequent save NEVER sends Patient A snapshot to Patient B", async () => {
+    // 1. Initial state: Patient A (enc-A) with active edits
+    const saveSpy = vi.spyOn(client, "saveOdontogram")
+      // Auto-save of Patient A before switch succeeds
+      .mockResolvedValueOnce({
+        odontogram: {
+          id: "rec-A",
+          clinicId: "c-1",
+          patientId: "pat-A",
+          encounterId: "enc-A",
+          payloadVersion: "2.22",
+          snapshotJson: JSON.stringify({ version: "2.22", teeth: { "11": { toothSelection: "implant" } } }),
+          isFinalized: false,
+          concurrencyVersion: 2,
+          createdAtUtc: "2026-10-22T12:00:00Z",
+        },
+        etag: '"2"',
+      })
+      // Subsequent save attempt after failed switch
+      .mockResolvedValueOnce({
+        odontogram: {
+          id: "rec-A",
+          clinicId: "c-1",
+          patientId: "pat-A",
+          encounterId: "enc-A",
+          payloadVersion: "2.22",
+          snapshotJson: JSON.stringify({ version: "2.22", teeth: { "11": { toothSelection: "implant" } } }),
+          isFinalized: false,
+          concurrencyVersion: 3,
+          createdAtUtc: "2026-10-22T12:00:00Z",
+        },
+        etag: '"3"',
+      });
+
+    // 2. Fetching Patient B (enc-B) fails (e.g. HTTP 500 or Network Disconnection)
+    vi.spyOn(client, "getOdontogramByEncounter").mockRejectedValueOnce(
+      new Error("Network connection dropped while loading Patient B")
+    );
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    bridge.startAutoSync();
+    mockStateListener?.(); // Mark dirty for Patient A
+
+    // 3. Clinician attempts to switch to Patient B
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow(
+      "Network connection dropped while loading Patient B"
+    );
+
+    // 4. Invariant: Active encounter MUST REMAIN Patient A
+    expect(bridge.getEncounterId()).toBe("enc-A");
+    expect(bridge.getETag()).toBe('"2"');
+
+    // 5. Clinician continues charting or triggers manual/auto save
+    await bridge.save("Clinician continues working on Patient A");
+
+    // 6. ABSOLUTE RELEASE GATE CHECK:
+    // Patient A's snapshot was NEVER dispatched to enc-B endpoint!
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+    expect(saveSpy.mock.calls[0][0]).toBe("enc-A");
+    expect(saveSpy.mock.calls[1][0]).toBe("enc-A");
+
+    // Verify zero calls to enc-B for saving
+    const sentToEncB = saveSpy.mock.calls.filter((call) => call[0] === "enc-B");
+    expect(sentToEncB).toHaveLength(0);
+  });
+
+  it("rejects switchEncounter if target encounter returns HTTP 404, preserving Patient A chart and identity", async () => {
+    vi.spyOn(client, "getOdontogramByEncounter").mockRejectedValueOnce(
+      new ApiError(404, "Encounter enc-B not found", { title: "Not Found", status: 404 })
+    );
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow(ApiError);
+
+    expect(bridge.getEncounterId()).toBe("enc-A");
+    expect(bridge.getStatus()).toBe("idle");
+  });
+
+  it("rejects switchEncounter if target snapshot returns malformed JSON, leaving chart untouched", async () => {
+    vi.spyOn(client, "getOdontogramByEncounter").mockResolvedValueOnce({
+      odontogram: {
+        id: "rec-B",
+        clinicId: "c-1",
+        patientId: "pat-B",
+        encounterId: "enc-B",
+        payloadVersion: "2.22",
+        snapshotJson: "{ invalid json string [",
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow(SyntaxError);
+
+    expect(bridge.getEncounterId()).toBe("enc-A");
+    expect(mockImportStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects switchEncounter if target snapshot belongs to a different encounter ID", async () => {
+    vi.spyOn(client, "getOdontogramByEncounter").mockResolvedValueOnce({
+      odontogram: {
+        id: "rec-wrong",
+        clinicId: "c-1",
+        patientId: "pat-wrong",
+        encounterId: "enc-attacker",
+        payloadVersion: "2.22",
+        snapshotJson: "{}",
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow("Cross-patient isolation breach");
+
+    expect(bridge.getEncounterId()).toBe("enc-A");
+    expect(mockImportStatus).not.toHaveBeenCalled();
+  });
+
+  it("rolls back chart to Patient A if importStatus throws during Phase B target hydration", async () => {
+    vi.spyOn(client, "getOdontogramByEncounter").mockResolvedValueOnce({
+      odontogram: {
+        id: "rec-B",
+        clinicId: "c-1",
+        patientId: "pat-B",
+        encounterId: "enc-B",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    mockImportStatus.mockImplementationOnce(() => {
+      throw new Error("Fatal SVG hydration exception");
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow("Fatal SVG hydration exception");
+
+    expect(bridge.getEncounterId()).toBe("enc-A");
+    expect(bridge.getStatus()).toBe("error");
+    // Rollback attempted
+    expect(mockImportStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("direct load() cannot silently overwrite dirty local clinical state", async () => {
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    bridge.startAutoSync();
+    mockStateListener?.(); // pending edit
+    expect(bridge.hasUnsavedChanges()).toBe(true);
+
+    await expect(bridge.load()).rejects.toThrow("Cannot load remote encounter while unsaved changes exist");
+  });
+
+  it("AUTOSAVE REVISION ACCOUNTING: does not report saved when new local edits arrived while save was in flight", async () => {
+    let resolveHangingSave: (val: unknown) => void = () => {};
+    const hangingPromise = new Promise((resolve) => {
+      resolveHangingSave = resolve;
+    });
+
+    const saveSpy = vi.spyOn(client, "saveOdontogram")
+      // First save hangs
+      .mockImplementationOnce(() => hangingPromise as any)
+      // Second queued save resolves immediately
+      .mockResolvedValueOnce({
+        odontogram: {
+          id: "rec-1",
+          clinicId: "c-1",
+          patientId: "p-1",
+          encounterId: "enc-1",
+          payloadVersion: "2.22",
+          snapshotJson: "{}",
+          isFinalized: false,
+          concurrencyVersion: 3,
+          createdAtUtc: "2026-10-22T12:00:00Z",
+        },
+        etag: '"3"',
+      });
+
+    const statusHistory: string[] = [];
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-1",
+      onStatusChange: (status) => statusHistory.push(status),
+    });
+
+    bridge.startAutoSync();
+
+    // 1. Initial edit triggers save
+    const firstSavePromise = bridge.save("Edit 1");
+    expect(bridge.getStatus()).toBe("saving");
+
+    // 2. Clinician makes another edit WHILE first save is in flight!
+    mockStateListener?.();
+    expect(bridge.hasUnsavedChanges()).toBe(true);
+
+    // 3. First save HTTP response completes
+    resolveHangingSave({
+      odontogram: {
+        id: "rec-1",
+        clinicId: "c-1",
+        patientId: "p-1",
+        encounterId: "enc-1",
+        payloadVersion: "2.22",
+        snapshotJson: "{}",
+        isFinalized: false,
+        concurrencyVersion: 2,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"2"',
+    });
+
+    await firstSavePromise;
+
+    // 4. Invariant: MUST NOT report "saved" because newer edits are still pending!
+    expect(bridge.getStatus()).not.toBe("saved");
+    expect(bridge.hasUnsavedChanges()).toBe(true);
+
+    // 5. Now flush/await remaining unsaved work
+    await bridge.save("Edit 2 queued");
+
+    // 6. Only now does status become "saved"
+    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.hasUnsavedChanges()).toBe(false);
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles rapid overlapping encounter switches without stale state contamination", async () => {
+    let resolveGetB: (val: unknown) => void = () => {};
+    const getBPromise = new Promise((resolve) => {
+      resolveGetB = resolve;
+    });
+
+    vi.spyOn(client, "getOdontogramByEncounter")
+      // Switch to B hangs
+      .mockImplementationOnce(() => getBPromise as any)
+      // Switch to C resolves immediately
+      .mockResolvedValueOnce({
+        odontogram: {
+          id: "rec-C",
+          clinicId: "c-1",
+          patientId: "pat-C",
+          encounterId: "enc-C",
+          payloadVersion: "2.22",
+          snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+          isFinalized: false,
+          concurrencyVersion: 1,
+          createdAtUtc: "2026-10-22T12:00:00Z",
+        },
+        etag: '"1"',
+      });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    // 1. Clinician starts switch to B
+    const switchBPromise = bridge.switchEncounter("enc-B");
+
+    // 2. Clinician immediately clicks to switch to C instead
+    const switchCPromise = bridge.switchEncounter("enc-C");
+
+    // Wait for C to finish
+    await switchCPromise;
+    expect(bridge.getEncounterId()).toBe("enc-C");
+
+    // 3. Stale B response finally arrives late
+    resolveGetB({
+      odontogram: {
+        id: "rec-B",
+        clinicId: "c-1",
+        patientId: "pat-B",
+        encounterId: "enc-B",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    await switchBPromise;
+
+    // 4. Invariant: Stale B response MUST NOT overwrite active encounter C!
+    expect(bridge.getEncounterId()).toBe("enc-C");
   });
 });
 
