@@ -61,6 +61,14 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
         "none", "endo-medical-filling", "endo-filling", "endo-filling-incomplete", "endo-glass-pin", "endo-metal-pin"
     ];
 
+    private static readonly HashSet<string> AllowedPerioSites =
+    [
+        "MB", "B", "DB", "ML", "L", "DL"
+    ];
+
+    private static readonly System.Text.RegularExpressions.Regex StrictVersionRegex =
+        new(@"^(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     public SaveOdontogramCommandValidator()
     {
         RuleFor(x => x.EncounterId)
@@ -116,13 +124,26 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
     {
         if (string.IsNullOrWhiteSpace(version)) return false;
 
-        var parts = version.Trim().Split('.');
-        if (parts.Length == 0 || !int.TryParse(parts[0], out var major)) return false;
-        if (!int.TryParse(parts.Length > 1 ? parts[1] : "0", out var minor)) return false;
+        var match = StrictVersionRegex.Match(version.Trim());
+        if (!match.Success) return false;
 
-        // Supported versions: 1.x or 2.x up to 2.22
-        if (major == 1) return true;
-        if (major == 2 && minor <= 22) return true;
+        if (!int.TryParse(match.Groups["major"].Value, out var major) ||
+            !int.TryParse(match.Groups["minor"].Value, out var minor))
+        {
+            return false;
+        }
+
+        if (match.Groups["patch"].Success && !int.TryParse(match.Groups["patch"].Value, out _))
+        {
+            return false;
+        }
+
+        // Supported legacy: 1.4 through 1.99
+        if (major == 1) return minor >= 4 && minor <= 99;
+
+        // Supported current: 2.0 through 2.22
+        if (major == 2) return minor >= 0 && minor <= 22;
+
         return false;
     }
 
@@ -345,12 +366,15 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
                 {
                     foreach (var pdProp in pdEl.EnumerateObject())
                     {
-                        if (pdProp.Value.ValueKind == JsonValueKind.Number && pdProp.Value.TryGetDouble(out var pdVal))
+                        if (!AllowedPerioSites.Contains(pdProp.Name))
                         {
-                            if (pdVal < 0 || pdVal > 15)
-                            {
-                                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio probing depth on '{pdProp.Name}' must be between 0 and 15 mm.");
-                            }
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio probing depth has unrecognized site '{pdProp.Name}' in {containerName}.");
+                            continue;
+                        }
+
+                        if (pdProp.Value.ValueKind != JsonValueKind.Number || !pdProp.Value.TryGetDouble(out var pdVal) || pdVal < 0 || pdVal > 15)
+                        {
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio probing depth on '{pdProp.Name}' must be between 0 and 15 mm.");
                         }
                     }
                 }
@@ -363,12 +387,15 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
                 {
                     foreach (var gmProp in gmEl.EnumerateObject())
                     {
-                        if (gmProp.Value.ValueKind == JsonValueKind.Number && gmProp.Value.TryGetDouble(out var gmVal))
+                        if (!AllowedPerioSites.Contains(gmProp.Name))
                         {
-                            if (gmVal < -10 || gmVal > 15)
-                            {
-                                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio gingival margin on '{gmProp.Name}' must be between -10 and 15 mm.");
-                            }
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio gingival margin has unrecognized site '{gmProp.Name}' in {containerName}.");
+                            continue;
+                        }
+
+                        if (gmProp.Value.ValueKind != JsonValueKind.Number || !gmProp.Value.TryGetDouble(out var gmVal) || gmVal < -10 || gmVal > 20)
+                        {
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio gingival margin on '{gmProp.Name}' must be between -10 and 20 mm.");
                         }
                     }
                 }
@@ -377,10 +404,30 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
                 {
                     context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio bleeding on probing (bop) in {containerName} must be an array.");
                 }
+                else if (bopEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in bopEl.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String || !AllowedPerioSites.Contains(item.GetString() ?? string.Empty))
+                        {
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio bop site '{item.GetString()}' in {containerName} is not a valid periodontal site.");
+                        }
+                    }
+                }
 
                 if (perioEl.TryGetProperty("sup", out var supEl) && supEl.ValueKind != JsonValueKind.Array && supEl.ValueKind != JsonValueKind.Null)
                 {
                     context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio suppuration (sup) in {containerName} must be an array.");
+                }
+                else if (supEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in supEl.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String || !AllowedPerioSites.Contains(item.GetString() ?? string.Empty))
+                        {
+                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' perio sup site '{item.GetString()}' in {containerName} is not a valid periodontal site.");
+                        }
+                    }
                 }
             }
         }
