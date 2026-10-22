@@ -34,11 +34,13 @@ public static class TestJwtGenerator
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        var nbf = expiresAt < DateTime.UtcNow ? expiresAt.AddMinutes(-5) : DateTime.UtcNow.AddMinutes(-5);
+
         var token = new JwtSecurityToken(
             issuer: issuer ?? DefaultIssuer,
             audience: audience ?? DefaultAudience,
             claims: claims,
-            notBefore: DateTime.UtcNow.AddMinutes(-5),
+            notBefore: nbf,
             expires: expiresAt,
             signingCredentials: credentials);
 
