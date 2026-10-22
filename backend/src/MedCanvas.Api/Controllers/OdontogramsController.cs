@@ -1,8 +1,10 @@
+using MedCanvas.Api.Common;
 using MedCanvas.Application.Common.Security;
 using MedCanvas.Application.Features.Odontograms;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace MedCanvas.Api.Controllers;
 
@@ -40,36 +42,14 @@ public sealed class OdontogramsController : ControllerBase
         [FromBody] SaveOdontogramRequest request,
         CancellationToken cancellationToken)
     {
-        int? expectedVersion = request.ExpectedVersion;
+        var (isValid, expectedVersion, problem) = IfMatchPreconditionParser.ParseIfMatchHeader(
+            Request.Headers,
+            HttpContext.Request.Path,
+            request.ExpectedVersion);
 
-        if (Request.Headers.TryGetValue("If-Match", out var ifMatch) && !string.IsNullOrWhiteSpace(ifMatch))
+        if (!isValid)
         {
-            var raw = ifMatch.ToString().Trim('\"', ' ');
-            if (!int.TryParse(raw, out var parsed))
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Type = "https://medcanvas.health/errors/malformed-etag",
-                    Title = "Malformed Precondition",
-                    Status = StatusCodes.Status400BadRequest,
-                    Detail = "The provided If-Match header value is not a valid integer revision token.",
-                    Instance = HttpContext.Request.Path
-                });
-            }
-
-            if (request.ExpectedVersion.HasValue && request.ExpectedVersion.Value != parsed)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Type = "https://medcanvas.health/errors/precondition-mismatch",
-                    Title = "Precondition Mismatch",
-                    Status = StatusCodes.Status400BadRequest,
-                    Detail = "The version specified in the If-Match header contradicts the expectedVersion in the request payload.",
-                    Instance = HttpContext.Request.Path
-                });
-            }
-
-            expectedVersion = parsed;
+            return BadRequest(problem);
         }
 
         var command = new SaveOdontogramCommand(
@@ -95,39 +75,17 @@ public sealed class OdontogramsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Finalize(
         [FromRoute] Guid encounterId,
-        [FromBody] FinalizeOdontogramRequest? request,
-        CancellationToken cancellationToken)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] FinalizeOdontogramRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
-        int? expectedVersion = request?.ExpectedVersion;
+        var (isValid, expectedVersion, problem) = IfMatchPreconditionParser.ParseIfMatchHeader(
+            Request.Headers,
+            HttpContext.Request.Path,
+            request?.ExpectedVersion);
 
-        if (Request.Headers.TryGetValue("If-Match", out var ifMatch) && !string.IsNullOrWhiteSpace(ifMatch))
+        if (!isValid)
         {
-            var raw = ifMatch.ToString().Trim('\"', ' ');
-            if (!int.TryParse(raw, out var parsed))
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Type = "https://medcanvas.health/errors/malformed-etag",
-                    Title = "Malformed Precondition",
-                    Status = StatusCodes.Status400BadRequest,
-                    Detail = "The provided If-Match header value is not a valid integer revision token.",
-                    Instance = HttpContext.Request.Path
-                });
-            }
-
-            if (request?.ExpectedVersion.HasValue == true && request.ExpectedVersion.Value != parsed)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Type = "https://medcanvas.health/errors/precondition-mismatch",
-                    Title = "Precondition Mismatch",
-                    Status = StatusCodes.Status400BadRequest,
-                    Detail = "The version specified in the If-Match header contradicts the expectedVersion in the request payload.",
-                    Instance = HttpContext.Request.Path
-                });
-            }
-
-            expectedVersion = parsed;
+            return BadRequest(problem);
         }
 
         if (!expectedVersion.HasValue)
