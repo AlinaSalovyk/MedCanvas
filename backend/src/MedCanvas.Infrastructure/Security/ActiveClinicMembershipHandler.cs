@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using MedCanvas.Application.Common.Interfaces;
+using MedCanvas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,18 +38,22 @@ public sealed class ActiveClinicMembershipHandler : AuthorizationHandler<ActiveC
             return;
         }
 
-        var membership = await _dbContext.ClinicMemberships
-            .AsNoTracking()
-            .Include(m => m.User)
-            .Include(m => m.Clinic)
-            .FirstOrDefaultAsync(m => m.UserId == userId && m.ClinicId == clinicId);
+        var query = from m in _dbContext.ClinicMemberships.AsNoTracking()
+                    where m.UserId == userId && m.ClinicId == clinicId && m.IsActive
+                    join u in _dbContext.Users.AsNoTracking() on m.UserId equals u.Id
+                    where u.IsActive
+                    join c in _dbContext.Clinics.AsNoTracking() on m.ClinicId equals c.Id
+                    where c.IsActive
+                    select m.Role;
 
-        if (membership == null || !membership.IsActive || !membership.User.IsActive || !membership.Clinic.IsActive)
+        var role = await query.Cast<MembershipRole?>().FirstOrDefaultAsync();
+
+        if (role == null)
         {
             return; // Inactive or revoked membership fails closed
         }
 
-        if (requirement.AllowedRoles.Count == 0 || requirement.AllowedRoles.Contains(membership.Role))
+        if (requirement.AllowedRoles.Count == 0 || requirement.AllowedRoles.Contains(role.Value))
         {
             context.Succeed(requirement);
         }
