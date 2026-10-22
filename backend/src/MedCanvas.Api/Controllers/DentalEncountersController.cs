@@ -70,7 +70,7 @@ public sealed class DentalEncountersController : ControllerBase
         [FromBody] CompleteEncounterRequest? request,
         CancellationToken cancellationToken)
     {
-        var result = await _sender.Send(new CompleteEncounterCommand(id, request?.ClinicalSummary), cancellationToken);
+        var result = await _sender.Send(new CompleteEncounterCommand(id), cancellationToken);
         return Ok(result);
     }
 
