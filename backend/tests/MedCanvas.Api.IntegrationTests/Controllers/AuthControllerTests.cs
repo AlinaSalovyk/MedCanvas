@@ -302,5 +302,28 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithTokenSignedByPreviousCompromisedSecret_Returns401Unauthorized()
+    {
+        // Arrange: Generate token signed with the old compromised development key
+        const string oldCompromisedSecret = "MedCanvasDevelopmentSecretKeyMustBeAtLeast32BytesLongForHmacSha256Security12345";
+        var oldKeyToken = TestJwtGenerator.GenerateTestToken(
+            userId: Guid.NewGuid(),
+            email: "oldkey@example.com",
+            clinicId: Guid.NewGuid(),
+            role: "Clinician",
+            expiresAt: DateTime.UtcNow.AddHours(1),
+            secret: oldCompromisedSecret);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", oldKeyToken);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Tokens signed with the old rotated key must be rejected with 401 Unauthorized
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 }
 
