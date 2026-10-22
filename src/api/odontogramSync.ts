@@ -28,6 +28,13 @@ export class OdontogramSyncBridge {
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private isHydrating = false;
 
+  // Concurrency & Autosave State Machine
+  private inFlightPromise: Promise<OdontogramResponseDto> | null = null;
+  private pendingBatchPromise: Promise<OdontogramResponseDto> | null = null;
+  private hasPendingEdits = false;
+  private pendingChangeSummary?: string;
+  private isDisposed = false;
+
   constructor(options: SyncOptions) {
     this.client = options.client;
     this.encounterId = options.encounterId;
@@ -45,6 +52,14 @@ export class OdontogramSyncBridge {
     return this.currentETag;
   }
 
+  public getEncounterId(): string {
+    return this.encounterId;
+  }
+
+  public hasUnsavedChanges(): boolean {
+    return this.currentStatus === "saving" || this.hasPendingEdits || this.saveTimeout !== null;
+  }
+
   private setStatus(status: SyncStatus, error?: Error): void {
     this.currentStatus = status;
     this.onStatusChange?.(status, error);
@@ -54,6 +69,10 @@ export class OdontogramSyncBridge {
    * Load the remote odontogram snapshot for this encounter and hydrate into the engine.
    */
   public async load(): Promise<void> {
+    if (this.isDisposed) {
+      throw new Error("OdontogramSyncBridge is disposed.");
+    }
+
     this.setStatus("loading");
     try {
       const { odontogram, etag } = await this.client.getOdontogramByEncounter(this.encounterId);
@@ -78,18 +97,46 @@ export class OdontogramSyncBridge {
   }
 
   /**
+   * Safely switch to another encounter. Flushes any pending edits first, then reloads.
+   */
+  public async switchEncounter(newEncounterId: string): Promise<void> {
+    if (this.encounterId === newEncounterId) {
+      return;
+    }
+
+    // Flush any pending unsaved work for current encounter before switching
+    if (this.hasUnsavedChanges()) {
+      await this.save("Auto-save prior to encounter switch").catch(() => {
+        // Continue switch even if save encountered an error
+      });
+    }
+
+    this.encounterId = newEncounterId;
+    this.currentETag = null;
+    this.currentVersion = 1;
+    this.hasPendingEdits = false;
+    await this.load();
+  }
+
+  /**
    * Attach live state listener to automatically push changes after debounce delay.
    */
   public startAutoSync(): void {
-    if (this.unsubscribeListener) {
+    if (this.unsubscribeListener || this.isDisposed) {
       return;
     }
 
     this.unsubscribeListener = onStateChange(() => {
-      if (this.isHydrating || !this.autoSave) {
+      if (this.isHydrating || !this.autoSave || this.isDisposed) {
         return;
       }
 
+      // If in conflict, halt auto-saves so we do not spam or clobber conflict state
+      if (this.currentStatus === "conflict") {
+        return;
+      }
+
+      this.hasPendingEdits = true;
       this.scheduleSave();
     });
   }
@@ -109,6 +156,14 @@ export class OdontogramSyncBridge {
     }
   }
 
+  /**
+   * Disposes the bridge, detaching listeners and cancelling timers.
+   */
+  public destroy(): void {
+    this.isDisposed = true;
+    this.stopAutoSync();
+  }
+
   private scheduleSave(): void {
     if (this.saveTimeout !== null) {
       clearTimeout(this.saveTimeout);
@@ -117,58 +172,104 @@ export class OdontogramSyncBridge {
     this.saveTimeout = setTimeout(() => {
       this.saveTimeout = null;
       this.save().catch(() => {
-        // Errors handled in save()
+        // Errors surfaced through setStatus
       });
     }, this.debounceMs);
   }
 
   /**
-   * Immediately save current clinical state to the backend with optimistic locking.
+   * Immediately save current clinical state with strict serial queuing to prevent race conditions.
+   * If a write is in flight, records pending changes and coalesces callers into a single next serialized save.
    */
   public async save(changeSummary?: string): Promise<OdontogramResponseDto> {
+    if (this.isDisposed) {
+      throw new Error("OdontogramSyncBridge is disposed.");
+    }
+
+    if (this.currentStatus === "conflict") {
+      throw new Error("Cannot save while concurrency conflict is active. Resolve conflict first.");
+    }
+
+    if (changeSummary) {
+      this.pendingChangeSummary = changeSummary;
+    }
+
     if (this.saveTimeout !== null) {
       clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
 
+    // Mutex: If a save is already in flight, coalesce into next serialized batch
+    if (this.inFlightPromise !== null) {
+      this.hasPendingEdits = true;
+      if (!this.pendingBatchPromise) {
+        this.pendingBatchPromise = (async () => {
+          await this.inFlightPromise!.catch(() => {});
+          this.pendingBatchPromise = null;
+          if (this.isDisposed || this.currentStatus === "conflict") {
+            throw new Error("Save aborted due to bridge state transition.");
+          }
+          return this.save();
+        })();
+      }
+      return this.pendingBatchPromise;
+    }
+
+    this.hasPendingEdits = false;
+    const summaryToUse = this.pendingChangeSummary;
+    this.pendingChangeSummary = undefined;
+
     this.setStatus("saving");
 
-    try {
-      const currentChart = getStatusChart();
-      const snapshotJson = JSON.stringify(currentChart);
+    const executeSave = async (): Promise<OdontogramResponseDto> => {
+      try {
+        const currentChart = getStatusChart();
+        const snapshotJson = JSON.stringify(currentChart);
 
-      const { odontogram, etag } = await this.client.saveOdontogram(
-        this.encounterId,
-        {
-          snapshotJson,
-          expectedVersion: this.currentVersion,
-          changeSummary,
-        },
-        this.currentETag
-      );
+        const { odontogram, etag } = await this.client.saveOdontogram(
+          this.encounterId,
+          {
+            snapshotJson,
+            expectedVersion: this.currentVersion,
+            changeSummary: summaryToUse,
+          },
+          this.currentETag
+        );
 
-      this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
-      this.currentVersion = odontogram.concurrencyVersion;
-      this.setStatus("saved");
-      return odontogram;
-    } catch (err: unknown) {
-      if (err instanceof ConcurrencyConflictError) {
-        this.setStatus("conflict", err);
-
-        // Fetch fresh server copy to pass to conflict resolver
-        try {
-          const fresh = await this.client.getOdontogramByEncounter(this.encounterId);
-          this.onConflict?.(fresh.odontogram);
-        } catch {
-          // ignore error fetching latest
+        if (this.isDisposed) {
+          return odontogram;
         }
 
-        throw err;
-      }
+        this.currentETag = etag || `"${odontogram.concurrencyVersion}"`;
+        this.currentVersion = odontogram.concurrencyVersion;
+        this.setStatus("saved");
+        return odontogram;
+      } catch (err: unknown) {
+        if (err instanceof ConcurrencyConflictError) {
+          this.setStatus("conflict", err);
+          this.stopAutoSync(); // Halt background saves
 
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.setStatus("error", error);
-      throw error;
-    }
+          // Fetch fresh server copy to pass to conflict callback
+          try {
+            const fresh = await this.client.getOdontogramByEncounter(this.encounterId);
+            this.onConflict?.(fresh.odontogram);
+          } catch {
+            // Ignore failure fetching fresh copy
+          }
+
+          throw err;
+        }
+
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.setStatus("error", error);
+        throw error;
+      } finally {
+        this.inFlightPromise = null;
+      }
+    };
+
+    this.inFlightPromise = executeSave();
+    return this.inFlightPromise;
   }
 }
+
