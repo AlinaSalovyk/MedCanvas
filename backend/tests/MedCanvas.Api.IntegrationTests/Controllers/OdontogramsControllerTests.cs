@@ -697,4 +697,75 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
         var response = await client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task SaveOdontogram_WhenEncounterBelongsToAnotherClinic_Returns404NotFound()
+    {
+        // Arrange - Anti-IDOR: User from Clinic A cannot mutate odontogram of Clinic B
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "CLINIC-A", now);
+        var clinicB = Clinic.Create("Clinic B", "CLINIC-B", now);
+
+        var userA = User.Create("dr.a@clinica.com", "Dr. A", "hash", now);
+        var membershipA = ClinicMembership.Create(clinicA.Id, userA.Id, MembershipRole.Clinician, now);
+
+        var patientB = Patient.Create(clinicB.Id, "Foreign", "Patient", null, null, null, null, "MRN-B", null, now);
+        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, userA.Id, now, "Exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.AddRange(clinicA, clinicB);
+            db.Users.Add(userA);
+            db.ClinicMemberships.Add(membershipA);
+            db.Patients.Add(patientB);
+            db.DentalEncounters.Add(encounterB);
+            await db.SaveChangesAsync();
+        }
+
+        var clientA = _factory.CreateAuthenticatedClient(userA, clinicA.Id, MembershipRole.Clinician);
+
+        // Act - Clinician from clinic A tries to mutate odontogram for encounter in clinic B
+        var response = await clientA.PutAsJsonAsync($"/api/v1/encounters/{encounterB.Id}/odontogram",
+            new SaveOdontogramRequest(SnapshotJson: SampleValidPayload));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetOdontogram_WhenEncounterBelongsToAnotherClinic_Returns404NotFound()
+    {
+        // Arrange - Anti-IDOR: User from Clinic A cannot view odontogram of Clinic B
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "CLINIC-A", now);
+        var clinicB = Clinic.Create("Clinic B", "CLINIC-B", now);
+
+        var userA = User.Create("dr.a@clinica.com", "Dr. A", "hash", now);
+        var membershipA = ClinicMembership.Create(clinicA.Id, userA.Id, MembershipRole.Clinician, now);
+
+        var patientB = Patient.Create(clinicB.Id, "Foreign", "Patient", null, null, null, null, "MRN-B", null, now);
+        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, userA.Id, now, "Exam", now);
+        var recordB = OdontogramRecord.Create(clinicB.Id, patientB.Id, encounterB.Id, "2.22", SampleValidPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.AddRange(clinicA, clinicB);
+            db.Users.Add(userA);
+            db.ClinicMemberships.Add(membershipA);
+            db.Patients.Add(patientB);
+            db.DentalEncounters.Add(encounterB);
+            db.OdontogramRecords.Add(recordB);
+            await db.SaveChangesAsync();
+        }
+
+        var clientA = _factory.CreateAuthenticatedClient(userA, clinicA.Id, MembershipRole.Clinician);
+
+        // Act
+        var response = await clientA.GetAsync($"/api/v1/encounters/{encounterB.Id}/odontogram");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }
