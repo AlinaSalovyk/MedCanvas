@@ -258,5 +258,98 @@ public class SaveOdontogramCommandValidatorTests
 
         result.ShouldNotHaveAnyValidationErrors();
     }
+
+    [Fact]
+    public void Validate_WhenSnapshotVersionIsUnsupportedFutureVersion_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"3.0","teeth":{}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Snapshot version '3.0' is not supported. Supported versions are <= 2.22.");
+    }
+
+    [Theory]
+    [InlineData("1.4")]
+    [InlineData("2.0")]
+    [InlineData("2.4")]
+    [InlineData("2.22")]
+    public void Validate_WhenSnapshotVersionIsSupportedLegacyOrCurrent_ShouldNotHaveValidationError(string version)
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: "{\"version\":\"" + version + "\",\"teeth\":{}}",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldNotHaveValidationErrorFor(x => x.SnapshotJson);
+    }
+
+    [Fact]
+    public void Validate_WhenCariesItemIsNotRecognizedSurface_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"caries":["invalid_surface_abc"]}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' caries finding item 'invalid_surface_abc' in teeth is not a valid dental surface indicator.");
+    }
+
+    [Fact]
+    public void Validate_WhenFillingSurfaceIsNotRecognized_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"fillingSurfaces":["bogus_surface"]}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' filling surface 'bogus_surface' in teeth is not a valid dental surface indicator.");
+    }
+
+    [Fact]
+    public void Validate_WhenRadixRemnantCarriesCoronalRestoration_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"14":{"toothSubstrate":"radix","restorationType":"crown"}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '14' with substrate 'radix' cannot carry a coronal restoration (crown).");
+    }
+
+    [Fact]
+    public void Validate_WhenPerioPdIsOutOfRange_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"perio":{"pd":{"B":25}}}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' perio probing depth on 'B' must be between 0 and 15 mm.");
+    }
 }
 
