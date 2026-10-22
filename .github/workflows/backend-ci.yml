@@ -1,0 +1,46 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-build-and-test:
+    name: Build, Format & Test (.NET 10 + PostgreSQL)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore backend/MedCanvas.sln
+
+      - name: Build solution (Release)
+        run: dotnet build backend/MedCanvas.sln --configuration Release --no-restore
+
+      - name: Verify code formatting
+        run: dotnet format backend/MedCanvas.sln --verify-no-changes --no-restore
+
+      - name: Run automated test suite with PostgreSQL Testcontainers
+        run: |
+          dotnet test backend/MedCanvas.sln \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+
+      - name: Upload code coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-code-coverage
+          path: ./TestResults/**/coverage.cobertura.xml
+          retention-days: 14

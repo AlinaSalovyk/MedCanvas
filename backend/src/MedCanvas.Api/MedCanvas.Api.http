@@ -1,0 +1,6 @@
+@MedCanvas.Api_HostAddress = http://localhost:5014
+
+GET {{MedCanvas.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
