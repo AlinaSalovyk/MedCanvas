@@ -179,24 +179,34 @@ public class PostgreSqlPersistenceTests : IAsyncLifetime
         _context.OdontogramRecords.Add(record);
         await _context.SaveChangesAsync();
 
-        // Simulate two concurrent clients both reading version 1
-        var clientA = record; // Tracking current entity in _context
+        // Simulate two concurrent clients both reading version 1 in separate DbContext instances
+        var options = new DbContextOptionsBuilder<MedCanvasDbContext>()
+            .UseNpgsql(_fixture.ConnectionString)
+            .Options;
+
+        await using var contextA = new MedCanvasDbContext(options);
+        await using var contextB = new MedCanvasDbContext(options);
+
+        var recordA = await contextA.OdontogramRecords.FirstAsync(r => r.Id == record.Id);
+        var recordB = await contextB.OdontogramRecords.FirstAsync(r => r.Id == record.Id);
 
         // Client A updates successfully to version 2
         var updateASnapshot = "{\"version\":\"2.22\",\"teeth\":{\"11\":{\"caries\":[\"caries-distal\"]}}}";
-        clientA.UpdatePayload(updateASnapshot, expectedVersion: 1, _now.AddSeconds(1));
-        await _context.SaveChangesAsync();
-        clientA.ConcurrencyVersion.Should().Be(2);
+        recordA.UpdatePayload(updateASnapshot, expectedVersion: 1, _now.AddSeconds(1));
+        await contextA.SaveChangesAsync();
+        recordA.ConcurrencyVersion.Should().Be(2);
 
-        // Client B tries to update using stale version 1
+        // Client B tries to save its update prepared against stale version 1
         var updateBSnapshot = "{\"version\":\"2.22\",\"teeth\":{\"11\":{\"caries\":[\"caries-mesial\"]}}}";
-        var actStaleUpdate = () => clientA.UpdatePayload(updateBSnapshot, expectedVersion: 1, _now.AddSeconds(2));
+        recordB.UpdatePayload(updateBSnapshot, expectedVersion: 1, _now.AddSeconds(2));
+        var actStaleUpdate = async () => await contextB.SaveChangesAsync();
 
-        // Act & Assert - Domain level rejects stale version 1 immediately with ConcurrencyConflictException
-        actStaleUpdate.Should().Throw<MedCanvas.Domain.Exceptions.ConcurrencyConflictException>();
+        // Act & Assert - EF Core & PostgreSQL reject update because database version is already 2
+        await actStaleUpdate.Should().ThrowAsync<DbUpdateConcurrencyException>();
 
         // Verify original winner data is preserved in database
-        var finalRecord = await _context.OdontogramRecords.AsNoTracking().FirstAsync(r => r.Id == record.Id);
+        await using var verifyContext = new MedCanvasDbContext(options);
+        var finalRecord = await verifyContext.OdontogramRecords.AsNoTracking().FirstAsync(r => r.Id == record.Id);
         finalRecord.ConcurrencyVersion.Should().Be(2);
         finalRecord.SnapshotJson.Should().Be(updateASnapshot);
     }
