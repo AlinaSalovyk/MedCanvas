@@ -146,13 +146,38 @@ npx playwright test --workers=2
 
 ---
 
-## 8. Rules for Future ASP.NET Core Backend Integration
-
-> [!IMPORTANT]
-> The backend is **NOT** being implemented in this frontend repository task. When backend integration begins, follow these rules:
+## 8. Rules for ASP.NET Core Backend Integration
 
 1. **Frontend Remains Standalone**: The frontend must continue to function offline in local/demonstration mode using `src/persistence.ts` LocalStorage fallback.
 2. **Canonical Contract**: All network serialization must use the canonical schema defined in `src/state/payload.ts` (`serializeState` / `hydrateState`) or standardized HL7® FHIR® R4 Bundles (`src/fhir/toFhir.ts`).
-3. **No Direct DOM or React State Binding in API Adapters**: Future API client adapters must communicate exclusively with `src/odontogram.ts` via state change subscriptions (`onStateChange`) and exported setters/getters.
-4. **Optimistic Locking**: The backend database must enforce revision/concurrency tokens (e.g. `RowVersion` or ETag) matching the odontogram payload version to prevent concurrent clinical overwrite.
-5. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) before designing the ASP.NET Core API or database schema.
+3. **No Direct DOM or React State Binding in API Adapters**: API client adapters must communicate exclusively with `src/odontogram.ts` via state change subscriptions (`onStateChange`) and exported setters/getters.
+4. **Optimistic Locking**: The backend database enforces revision/concurrency tokens (`ConcurrencyVersion` / ETag) matching the odontogram payload version to prevent concurrent clinical overwrite.
+5. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) and [`docs/backend/reference-audit.md`](./docs/backend/reference-audit.md).
+
+---
+
+## 9. Backend Agent Skills Catalog
+
+Whenever modifying or implementing backend code, agents must invoke and adhere to the specialized skills located in `.agents/skills/`:
+
+| Skill Name | Path | Primary Responsibility |
+|---|---|---|
+| `medcanvas-backend-architecture` | `.agents/skills/medcanvas-backend-architecture/` | Clean Architecture layer boundaries, dependency rules, DI registration, modularity. |
+| `medcanvas-domain-modeling` | `.agents/skills/medcanvas-domain-modeling/` | Aggregate roots, entity encapsulation, factories, domain invariants, UTC time. |
+| `medcanvas-cqrs-mediatr` | `.agents/skills/medcanvas-cqrs-mediatr/` | CQRS commands/queries, MediatR handlers, transaction boundaries, cancellation. |
+| `medcanvas-validation` | `.agents/skills/medcanvas-validation/` | FluentValidation rules, pipeline behavior, RFC 7807 ProblemDetails responses. |
+| `medcanvas-postgresql-efcore` | `.agents/skills/medcanvas-postgresql-efcore/` | EF Core mapping, Npgsql PostgreSQL, JSONB snapshots, migrations, foreign keys. |
+| `medcanvas-api-security` | `.agents/skills/medcanvas-api-security/` | JWT auth, role authorization, tenant clinic isolation (anti-IDOR), audit logging. |
+| `medcanvas-clinical-payload` | `.agents/skills/medcanvas-clinical-payload/` | Native JSON schema, Status/Plan invariants, 32 FDI teeth, 100% round-trip fidelity. |
+| `medcanvas-backend-testing` | `.agents/skills/medcanvas-backend-testing/` | Mandatory test gates: Unit, Domain, Handler, Real PostgreSQL Testcontainers, API tests. |
+
+### Backend Verification Commands
+```powershell
+# Restore and Build
+dotnet restore backend/MedCanvas.sln
+dotnet build backend/MedCanvas.sln --configuration Release
+
+# Full Automated Test Suite with Code Coverage
+dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
+```
+
