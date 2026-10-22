@@ -265,8 +265,49 @@ public static class FhirBundleBuilder
                         continue;
                     }
 
-                    if (planData.TryGetProperty("planRestoration", out var planRestEl) ||
-                        (planData.TryGetProperty("restorationType", out var pRestType) && pRestType.ValueKind == JsonValueKind.String && pRestType.GetString() != "none"))
+                    bool isPlanned = false;
+                    string snomedCode = "281691000";
+                    string snomedDisplay = "Dental procedure";
+                    string procedureText = $"Planned dental intervention on Tooth FDI {toothFdi}";
+
+                    if (planData.TryGetProperty("planRestoration", out var planRestEl))
+                    {
+                        isPlanned = true;
+                        procedureText = $"Planned dental restoration on Tooth FDI {toothFdi}";
+                    }
+                    else if (planData.TryGetProperty("restorationType", out var pRestType) &&
+                             pRestType.ValueKind == JsonValueKind.String &&
+                             pRestType.GetString() != "none")
+                    {
+                        isPlanned = true;
+                        procedureText = $"Planned {pRestType.GetString()} restoration on Tooth FDI {toothFdi}";
+                    }
+                    else if (planData.TryGetProperty("fillingSurfaces", out var pFillSurfaces) &&
+                             pFillSurfaces.ValueKind == JsonValueKind.Array &&
+                             pFillSurfaces.GetArrayLength() > 0)
+                    {
+                        isPlanned = true;
+                        procedureText = $"Planned dental restoration on Tooth FDI {toothFdi}";
+                    }
+                    else if (planData.TryGetProperty("extractionPlan", out var pExtract) &&
+                             pExtract.ValueKind == JsonValueKind.True)
+                    {
+                        isPlanned = true;
+                        snomedCode = "234323000";
+                        snomedDisplay = "Extraction of tooth";
+                        procedureText = $"Planned dental extraction on Tooth FDI {toothFdi}";
+                    }
+                    else if (planData.TryGetProperty("endo", out var pEndo) &&
+                             pEndo.ValueKind == JsonValueKind.String &&
+                             pEndo.GetString() != "none")
+                    {
+                        isPlanned = true;
+                        snomedCode = "234737002";
+                        snomedDisplay = "Root canal therapy";
+                        procedureText = $"Planned endodontic treatment on Tooth FDI {toothFdi}";
+                    }
+
+                    if (isPlanned)
                     {
                         entries.Add(new JsonObject
                         {
@@ -291,11 +332,11 @@ public static class FhirBundleBuilder
                                         new JsonObject
                                         {
                                             ["system"] = "http://snomed.info/sct",
-                                            ["code"] = "281691000",
-                                            ["display"] = "Dental procedure"
+                                            ["code"] = snomedCode,
+                                            ["display"] = snomedDisplay
                                         }
                                     },
-                                    ["text"] = $"Planned dental restoration on Tooth FDI {toothFdi}"
+                                    ["text"] = procedureText
                                 },
                                 ["bodySite"] = new JsonArray
                                 {
