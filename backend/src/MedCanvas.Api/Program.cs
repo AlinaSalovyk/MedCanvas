@@ -1,6 +1,8 @@
 using System.Text;
 using MedCanvas.Api.Middleware;
+using MedCanvas.Api.Services;
 using MedCanvas.Application;
+using MedCanvas.Application.Common.Interfaces;
 using MedCanvas.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +14,10 @@ builder.Services.AddApplicationServices();
 
 // Infrastructure layer services (PostgreSQL, Repositories, DbContext, Auth services)
 builder.Services.AddInfrastructureServices(builder.Configuration);
+
+// User context from HttpContext claims
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 
 // JWT Authentication setup
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "MedCanvasDevelopmentSecretKeyMustBeAtLeast32BytesLongForHmacSha256Security12345";
