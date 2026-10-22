@@ -83,6 +83,17 @@ public sealed class ExceptionHandlingMiddleware
                     Instance = context.Request.Path
                 }),
 
+            PreconditionRequiredException reqEx => (
+                StatusCodes.Status428PreconditionRequired,
+                new ProblemDetails
+                {
+                    Type = "https://medcanvas.health/errors/precondition-required",
+                    Title = "Precondition Required",
+                    Status = StatusCodes.Status428PreconditionRequired,
+                    Detail = reqEx.Message,
+                    Instance = context.Request.Path
+                }),
+
             ConcurrencyConflictException concurrencyEx => (
                 StatusCodes.Status412PreconditionFailed,
                 new ProblemDetails
@@ -91,6 +102,17 @@ public sealed class ExceptionHandlingMiddleware
                     Title = "Precondition Failed (Concurrency Conflict)",
                     Status = StatusCodes.Status412PreconditionFailed,
                     Detail = concurrencyEx.Message,
+                    Instance = context.Request.Path
+                }),
+
+            Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException => (
+                StatusCodes.Status412PreconditionFailed,
+                new ProblemDetails
+                {
+                    Type = "https://medcanvas.health/errors/concurrency-conflict",
+                    Title = "Precondition Failed (Database Concurrency Conflict)",
+                    Status = StatusCodes.Status412PreconditionFailed,
+                    Detail = "The clinical record has been modified by another concurrent transaction.",
                     Instance = context.Request.Path
                 }),
 
@@ -130,14 +152,16 @@ public sealed class ExceptionHandlingMiddleware
 
         problemDetails.Extensions["traceId"] = traceId;
 
+        var safeLogMessage = SanitizeForLogging(exception.Message);
+
         if (statusCode >= StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError(exception, "Unhandled server exception occurred. TraceId: {TraceId}", traceId);
+            _logger.LogError("Unhandled server exception ({ExceptionType}). TraceId: {TraceId}", exception.GetType().Name, traceId);
         }
         else
         {
             _logger.LogWarning("Handled request exception ({StatusCode}): {Message}. TraceId: {TraceId}",
-                statusCode, exception.Message, traceId);
+                statusCode, safeLogMessage, traceId);
         }
 
         context.Response.ContentType = "application/problem+json";
@@ -150,5 +174,24 @@ public sealed class ExceptionHandlingMiddleware
         });
 
         await context.Response.WriteAsync(json);
+    }
+
+    private static string SanitizeForLogging(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return string.Empty;
+        }
+
+        // Redact JSON structures
+        if (message.Contains('{') && message.Contains('}'))
+        {
+            message = System.Text.RegularExpressions.Regex.Replace(message, @"\{.*?\}", "[REDACTED_PAYLOAD]");
+        }
+
+        // Redact JWT or Bearer tokens if present
+        message = System.Text.RegularExpressions.Regex.Replace(message, @"(ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})", "[REDACTED_JWT]");
+
+        return message;
     }
 }
