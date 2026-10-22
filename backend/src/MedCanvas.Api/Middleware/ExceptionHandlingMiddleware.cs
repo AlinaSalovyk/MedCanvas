@@ -50,6 +50,17 @@ public sealed class ExceptionHandlingMiddleware
                     Instance = context.Request.Path
                 }),
 
+            UnauthorizedAccessException unauthEx => (
+                StatusCodes.Status401Unauthorized,
+                new ProblemDetails
+                {
+                    Type = "https://medcanvas.health/errors/unauthorized",
+                    Title = "Unauthorized",
+                    Status = StatusCodes.Status401Unauthorized,
+                    Detail = unauthEx.Message,
+                    Instance = context.Request.Path
+                }),
+
             NotFoundException notFoundEx => (
                 StatusCodes.Status404NotFound,
                 new ProblemDetails
