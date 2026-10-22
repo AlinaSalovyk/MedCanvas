@@ -177,7 +177,13 @@ Whenever modifying or implementing backend code, agents must invoke and adhere t
 dotnet restore backend/MedCanvas.sln
 dotnet build backend/MedCanvas.sln --configuration Release
 
-# Full Automated Test Suite with Code Coverage
+# Code Formatting Verification
+dotnet format backend/MedCanvas.sln --verify-no-changes
+
+# Full Automated Test Suite with Code Coverage (186 tests passing, 0 failed)
 dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
 ```
+
+For full backend architecture, database schema, and API documentation, refer to [`docs/backend/`](./docs/backend/).
+
 
