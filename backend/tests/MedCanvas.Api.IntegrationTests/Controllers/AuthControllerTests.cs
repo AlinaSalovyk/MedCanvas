@@ -35,7 +35,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
     {
         // Arrange
         var now = DateTime.UtcNow;
-        var clinic = Clinic.Create("Smile Dental Clinic", "clinic@smiledental.com", "+380501112233", "Kyiv, Ukraine", now);
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
@@ -43,7 +43,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         var passwordHash = hasher.HashPassword("StrongP@ssw0rd123!");
         var user = User.Create("dr.smith@smiledental.com", "Dr. John Smith", passwordHash, now);
-        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Dentist, now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
 
         db.Clinics.Add(clinic);
         db.Users.Add(user);
@@ -64,7 +64,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
         result.FullName.Should().Be("Dr. John Smith");
         result.ClinicId.Should().Be(clinic.Id);
         result.ClinicName.Should().Be("Smile Dental Clinic");
-        result.Role.Should().Be("Dentist");
+        result.Role.Should().Be("Clinician");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
     {
         // Arrange
         var now = DateTime.UtcNow;
-        var clinic = Clinic.Create("Smile Dental Clinic", "clinic@smiledental.com", "+380501112233", "Kyiv, Ukraine", now);
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
@@ -80,7 +80,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         var passwordHash = hasher.HashPassword("StrongP@ssw0rd123!");
         var user = User.Create("dr.smith@smiledental.com", "Dr. John Smith", passwordHash, now);
-        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Dentist, now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
 
         db.Clinics.Add(clinic);
         db.Users.Add(user);
@@ -114,8 +114,8 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
     {
         // Arrange
         var now = DateTime.UtcNow;
-        var clinicA = Clinic.Create("Clinic A", "clinica@example.com", "+380501112233", "Kyiv, Ukraine", now);
-        var clinicB = Clinic.Create("Clinic B", "clinicb@example.com", "+380504445566", "Lviv, Ukraine", now);
+        var clinicA = Clinic.Create("Clinic A", "CLINIC-A", now);
+        var clinicB = Clinic.Create("Clinic B", "CLINIC-B", now);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
@@ -123,7 +123,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         var passwordHash = hasher.HashPassword("StrongP@ssw0rd123!");
         var user = User.Create("dr.external@example.com", "Dr. External", passwordHash, now);
-        var membershipA = ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Dentist, now);
+        var membershipA = ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Clinician, now);
 
         db.Clinics.AddRange(clinicA, clinicB);
         db.Users.Add(user);
@@ -157,7 +157,7 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
     {
         // Arrange
         var now = DateTime.UtcNow;
-        var clinic = Clinic.Create("Smile Dental Clinic", "clinic@smiledental.com", "+380501112233", "Kyiv, Ukraine", now);
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
