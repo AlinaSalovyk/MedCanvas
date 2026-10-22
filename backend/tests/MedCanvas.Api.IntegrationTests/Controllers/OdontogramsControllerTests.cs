@@ -32,7 +32,7 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private const string SampleValidPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
+    private static readonly string SampleValidPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
 
     [Fact]
     public async Task SaveOdontogram_InitialSave_PersistsJsonbSnapshotAndReturnsETag()

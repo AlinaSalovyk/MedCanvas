@@ -5,6 +5,12 @@
     <ProjectReference Include="..\MedCanvas.Tests.Common\MedCanvas.Tests.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\generated\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

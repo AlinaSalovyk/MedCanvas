@@ -2,246 +2,102 @@ namespace MedCanvas.Tests.Data;
 
 /// <summary>
 /// Canonical clinical odontogram JSON fixtures generated directly from frontend v2.22 serialization contract
-/// (serializeState(), collectExportPayload(), and native import/export tests).
-/// Replaces artificial incompatible test payloads that used object-based caries or non-FDI teeth.
+/// (serializeState(), defaultState(), and src/__tests__/parity/canonical-fixtures.ts).
+/// The generated files are stored in Fixtures/generated/ and loaded dynamically with robust fallbacks.
 /// </summary>
 public static class ClinicalPayloadFixtures
 {
     public const string CanonicalPayloadVersion = "2.22";
 
+    private static readonly string FixturesDirectory = ResolveFixturesDirectory();
+
+    private static string ResolveFixturesDirectory()
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "Fixtures", "generated"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "tests", "MedCanvas.Tests.Data", "Fixtures", "generated"),
+            Path.Combine(baseDir, "..", "..", "..", "Fixtures", "generated"),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "backend", "tests", "MedCanvas.Tests.Data", "Fixtures", "generated"))
+        };
+
+        return candidates.FirstOrDefault(Directory.Exists)
+            ?? Path.Combine(baseDir, "Fixtures", "generated");
+    }
+
+    public static string LoadGeneratedFixture(string filename)
+    {
+        var path = Path.Combine(FixturesDirectory, filename);
+        if (File.Exists(path))
+        {
+            return File.ReadAllText(path);
+        }
+
+        throw new FileNotFoundException(
+            $"Canonical frontend-generated fixture '{filename}' not found at '{path}'. " +
+            "Run 'npm run fixtures:generate' to generate canonical contract fixtures.", path);
+    }
+
     /// <summary>
     /// Minimal valid empty chart payload with empty teeth dictionary.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string EmptyChartPayload = """
-    {
-        "version": "2.22",
-        "globals": {
-            "wisdomVisible": true,
-            "showBase": true,
-            "occlusalVisible": true,
-            "showHealthyPulp": false,
-            "edentulous": false
-        },
-        "teeth": {}
-    }
-    """;
+    public static readonly string EmptyChartPayload = LoadGeneratedFixture("empty-chart.json");
 
     /// <summary>
     /// Valid payload with multi-surface caries array, severity map, fillings, and crown restoration.
-    /// Matches frontend serializeState() representation.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string CariesAndRestorationsPayload = """
-    {
-        "version": "2.22",
-        "globals": {
-            "wisdomVisible": true,
-            "showBase": true,
-            "occlusalVisible": true,
-            "showHealthyPulp": false,
-            "edentulous": false
-        },
-        "teeth": {
-            "11": {
-                "toothSelection": "tooth-base",
-                "caries": ["caries-distal", "caries-mesial"],
-                "cariesActiveDepth": 2,
-                "cariesSeverity": {
-                    "distal": 3,
-                    "mesial": 2
-                },
-                "restorationType": "none",
-                "restorationMaterial": "none",
-                "mobility": "none"
-            },
-            "16": {
-                "toothSelection": "implant",
-                "caries": [],
-                "restorationType": "crown",
-                "restorationMaterial": "zircon",
-                "mobility": "none"
-            },
-            "21": {
-                "toothSelection": "tooth-base",
-                "caries": [],
-                "fillingSurfaces": ["occlusal"],
-                "fillingSurfaceMaterials": {
-                    "occlusal": "composite"
-                },
-                "restorationType": "none",
-                "restorationMaterial": "none"
-            },
-            "26": {
-                "toothSelection": "tooth-base",
-                "caries": ["caries-occlusal"],
-                "cariesSeverity": {
-                    "occlusal": 4
-                },
-                "restorationType": "none",
-                "restorationMaterial": "none"
-            }
-        }
-    }
-    """;
+    public static readonly string CariesAndRestorationsPayload = LoadGeneratedFixture("caries-and-restorations.json");
 
     /// <summary>
     /// Clinical payload demonstrating Status chart alongside an independent Plan chart.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string StatusAndPlanPayload = """
-    {
-        "version": "2.22",
-        "globals": {
-            "wisdomVisible": true,
-            "showBase": true,
-            "occlusalVisible": true,
-            "showHealthyPulp": false,
-            "edentulous": false
-        },
-        "teeth": {
-            "11": {
-                "toothSelection": "tooth-base",
-                "caries": ["caries-distal"],
-                "cariesSeverity": {
-                    "distal": 3
-                },
-                "restorationType": "none"
-            }
-        },
-        "plan": {
-            "11": {
-                "toothSelection": "tooth-base",
-                "caries": [],
-                "fillingSurfaces": ["distal"],
-                "fillingSurfaceMaterials": {
-                    "distal": "composite"
-                },
-                "planRestoration": {
-                    "type": "composite",
-                    "shade": "A2"
-                }
-            }
-        }
-    }
-    """;
+    public static readonly string StatusAndPlanPayload = LoadGeneratedFixture("status-and-plan.json");
 
     /// <summary>
     /// Payload with missing teeth (toothSelection = "none") and implant.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string ImplantsAndMissingTeethPayload = """
-    {
-        "version": "2.22",
-        "globals": {
-            "wisdomVisible": true,
-            "showBase": true,
-            "occlusalVisible": true
-        },
-        "teeth": {
-            "18": { "toothSelection": "none" },
-            "28": { "toothSelection": "none" },
-            "38": { "toothSelection": "none" },
-            "48": { "toothSelection": "none" },
-            "16": {
-                "toothSelection": "implant",
-                "restorationType": "crown",
-                "restorationMaterial": "zircon"
-            },
-            "21": { "toothSelection": "tooth-base" }
-        }
-    }
-    """;
+    public static readonly string ImplantsAndMissingTeethPayload = LoadGeneratedFixture("implants-and-missing-teeth.json");
 
     /// <summary>
     /// Payload with primary (deciduous) dentition using valid FDI keys 51..85 and milktooth finding.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string PrimaryAndMixedDentitionPayload = """
-    {
-        "version": "2.22",
-        "globals": { "wisdomVisible": false },
-        "teeth": {
-            "51": {
-                "toothSelection": "milktooth",
-                "caries": ["caries-mesial"],
-                "cariesSeverity": { "mesial": 2 }
-            },
-            "55": { "toothSelection": "milktooth" },
-            "61": { "toothSelection": "milktooth" },
-            "71": { "toothSelection": "milktooth" },
-            "85": { "toothSelection": "milktooth" }
-        }
-    }
-    """;
+    public static readonly string PrimaryAndMixedDentitionPayload = LoadGeneratedFixture("primary-and-mixed-dentition.json");
 
     /// <summary>
     /// Payload with endodontic treatment finding.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string EndodonticsPayload = """
-    {
-        "version": "2.22",
-        "teeth": {
-            "36": {
-                "toothSelection": "tooth-base",
-                "endo": "endo-filling",
-                "periapicalType": "none",
-                "mods": ["root-filling"]
-            }
-        }
-    }
-    """;
+    public static readonly string EndodonticsPayload = LoadGeneratedFixture("endodontics.json");
 
     /// <summary>
     /// Payload with 6-site periodontal probing measurements (PD, GM, BOP, SUP).
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string PeriodontalPayload = """
-    {
-        "version": "2.22",
-        "teeth": {
-            "11": {
-                "toothSelection": "tooth-base",
-                "perio": {
-                    "pd": { "MB": 4, "B": 2, "DB": 3, "ML": 3, "L": 2, "DL": 4 },
-                    "gm": { "MB": 1, "B": 0, "DB": 0, "ML": 0, "L": 0, "DL": 1 },
-                    "bop": ["MB", "DL"],
-                    "sup": []
-                }
-            }
-        }
-    }
-    """;
+    public static readonly string PeriodontalPayload = LoadGeneratedFixture("periodontal.json");
 
     /// <summary>
     /// Payload with Case Metadata.
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string CaseMetadataPayload = """
-    {
-        "version": "2.22",
-        "teeth": {
-            "11": { "toothSelection": "tooth-base" }
-        },
-        "case": {
-            "patientName": "Synthetic Test Patient",
-            "notes": "Non-identifying synthetic test case notes"
-        }
-    }
-    """;
+    public static readonly string CaseMetadataPayload = LoadGeneratedFixture("case-metadata.json");
 
     /// <summary>
     /// Payload with custom plugin states (which must be preserved without loss).
+    /// Generated via frontend serializeState().
     /// </summary>
-    public const string PluginCustomStatesPayload = """
-    {
-        "version": "2.22",
-        "teeth": {
-            "11": {
-                "toothSelection": "tooth-base",
-                "customStates": {
-                    "orthoSensorPlugin": {
-                        "forceGrams": 45.5,
-                        "bracketId": "BR-11"
-                    }
-                }
-            }
-        }
-    }
-    """;
+    public static readonly string PluginCustomStatesPayload = LoadGeneratedFixture("plugin-custom-states.json");
+
+    // =========================================================================
+    // Negative Validation Fixtures (Manually curated synthetic boundary tests)
+    // Note: The frontend serializer produces only structurally valid states by design.
+    // The negative fixtures below are intentionally curated to test schema rejection.
+    // =========================================================================
 
     /// <summary>
     /// Malformed payload with artificial object-based caries (contrary to frontend array serialization).

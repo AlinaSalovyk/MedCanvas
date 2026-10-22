@@ -1,0 +1,62 @@
+{
+  "version": "2.22",
+  "globals": {
+    "wisdomVisible": true,
+    "showBase": true,
+    "occlusalVisible": true,
+    "showHealthyPulp": false,
+    "edentulous": false
+  },
+  "teeth": {
+    "36": {
+      "toothSelection": "tooth-base",
+      "pulpDx": "normal",
+      "pulpLatin": "none",
+      "apicalDx": "normal",
+      "endoResection": false,
+      "resorptionType": "none",
+      "periImplant": "none",
+      "mods": [
+        "root-filling"
+      ],
+      "periapicalType": "none",
+      "endo": "endo-filling",
+      "caries": [],
+      "cariesActiveDepth": 2,
+      "cariesSeverity": {},
+      "fillingMaterial": "none",
+      "fillingSurfaces": [],
+      "fillingSurfaceMaterials": {},
+      "fissureSealing": false,
+      "calculus": false,
+      "contactMesial": false,
+      "contactDistal": false,
+      "wearEdge": "none",
+      "wearCervical": "none",
+      "discoloration": "none",
+      "orthoAppliance": "none",
+      "orthoDrift": "none",
+      "orthoVertical": "none",
+      "orthoRotation": false,
+      "brokenMesial": false,
+      "brokenIncisal": false,
+      "brokenDistal": false,
+      "extractionWound": false,
+      "extractionPlan": false,
+      "parapulpalPin": false,
+      "crownReplace": false,
+      "crownNeeded": false,
+      "missingClosed": false,
+      "bridgePillar": false,
+      "prosthesis": "none",
+      "mobility": "none",
+      "toothSubstrate": "natural",
+      "restorationType": "none",
+      "restorationMaterial": "none",
+      "crownLeakage": false,
+      "rootCaries": "none",
+      "radiographicDepth": {},
+      "fillingDefect": {}
+    }
+  }
+}

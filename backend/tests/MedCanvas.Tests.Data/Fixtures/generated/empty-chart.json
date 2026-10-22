@@ -1,0 +1,11 @@
+{
+  "version": "2.22",
+  "globals": {
+    "wisdomVisible": true,
+    "showBase": true,
+    "occlusalVisible": true,
+    "showHealthyPulp": false,
+    "edentulous": false
+  },
+  "teeth": {}
+}

@@ -27,7 +27,7 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private const string SampleDentalPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
+    private static readonly string SampleDentalPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
 
     [Fact]
     public async Task GetFhirBundle_ReturnsValidHl7FhirR4Bundle_WithPatientOrganizationEncounterAndConditions()
