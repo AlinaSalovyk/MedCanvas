@@ -138,6 +138,17 @@ public sealed class ExceptionHandlingMiddleware
                     Instance = context.Request.Path
                 }),
 
+            ConflictException conflictEx => (
+                StatusCodes.Status409Conflict,
+                new ProblemDetails
+                {
+                    Type = "https://medcanvas.health/errors/conflict",
+                    Title = "Resource Conflict",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = conflictEx.Message,
+                    Instance = context.Request.Path
+                }),
+
             _ => (
                 StatusCodes.Status500InternalServerError,
                 new ProblemDetails
@@ -152,16 +163,16 @@ public sealed class ExceptionHandlingMiddleware
 
         problemDetails.Extensions["traceId"] = traceId;
 
-        var safeLogMessage = SanitizeForLogging(exception.Message);
+        var exceptionCategory = exception.GetType().Name;
 
         if (statusCode >= StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError("Unhandled server exception ({ExceptionType}). TraceId: {TraceId}", exception.GetType().Name, traceId);
+            _logger.LogError("Unhandled server exception ({ExceptionCategory}). TraceId: {TraceId}", exceptionCategory, traceId);
         }
         else
         {
-            _logger.LogWarning("Handled request exception ({StatusCode}): {Message}. TraceId: {TraceId}",
-                statusCode, safeLogMessage, traceId);
+            _logger.LogWarning("Handled request exception ({StatusCode}, {ExceptionCategory}). TraceId: {TraceId}",
+                statusCode, exceptionCategory, traceId);
         }
 
         context.Response.ContentType = "application/problem+json";
