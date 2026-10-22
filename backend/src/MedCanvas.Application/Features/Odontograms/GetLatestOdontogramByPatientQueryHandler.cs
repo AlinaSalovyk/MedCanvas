@@ -39,7 +39,7 @@ public sealed class GetLatestOdontogramByPatientQueryHandler : IRequestHandler<G
         var record = await _odontogramRepository.GetLatestByPatientIdAsync(patient.Id, clinicId, cancellationToken);
         if (record == null)
         {
-            throw new NotFoundException($"No odontogram found for patient '{patient.Id}'.");
+            throw new NotFoundException(nameof(OdontogramRecord), $"PatientId:{patient.Id}");
         }
 
         return new OdontogramResponseDto(
