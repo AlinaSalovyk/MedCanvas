@@ -276,9 +276,16 @@ public class SaveOdontogramCommandValidatorTests
 
     [Theory]
     [InlineData("1.4")]
+    [InlineData("1.4.0")]
+    [InlineData("1.10")]
     [InlineData("2.0")]
+    [InlineData("2.3")]
+    [InlineData("2.3.0")]
     [InlineData("2.4")]
+    [InlineData("2.20")]
+    [InlineData("2.21")]
     [InlineData("2.22")]
+    [InlineData("2.22.0")]
     public void Validate_WhenSnapshotVersionIsSupportedLegacyOrCurrent_ShouldNotHaveValidationError(string version)
     {
         var command = new SaveOdontogramCommand(
@@ -290,6 +297,31 @@ public class SaveOdontogramCommandValidatorTests
         var result = _validator.TestValidate(command);
 
         result.ShouldNotHaveValidationErrorFor(x => x.SnapshotJson);
+    }
+
+    [Theory]
+    [InlineData("3.0")]
+    [InlineData("2.23")]
+    [InlineData("1.3")]
+    [InlineData("1.0")]
+    [InlineData("1.999")]
+    [InlineData("2.22.invalid")]
+    [InlineData("-1.4")]
+    [InlineData("1.4.1.2")]
+    [InlineData("2.22-beta")]
+    [InlineData("invalid_version")]
+    public void Validate_WhenSnapshotVersionIsUnsupportedOrMalformed_ShouldHaveValidationError(string invalidVersion)
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: "{\"version\":\"" + invalidVersion + "\",\"teeth\":{}}",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage($"Snapshot version '{invalidVersion}' is not supported. Supported versions are <= 2.22.");
     }
 
     [Fact]
@@ -350,6 +382,80 @@ public class SaveOdontogramCommandValidatorTests
 
         result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
             .WithErrorMessage("Tooth '11' perio probing depth on 'B' must be between 0 and 15 mm.");
+    }
+
+    [Fact]
+    public void Validate_WhenPerioSiteIsInvalid_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"perio":{"pd":{"NONEXISTENT_SITE":5}}}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' perio probing depth has unrecognized site 'NONEXISTENT_SITE' in teeth.");
+    }
+
+    [Fact]
+    public void Validate_WhenPerioGmIsOutOfRange_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"perio":{"gm":{"B":25}}}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' perio gingival margin on 'B' must be between -10 and 20 mm.");
+    }
+
+    [Fact]
+    public void Validate_WhenPerioBopContainsInvalidSite_ShouldHaveValidationError()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """{"version":"2.22","teeth":{"11":{"perio":{"bop":["INVALID_BOP"]}}}}""",
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .WithErrorMessage("Tooth '11' perio bop site 'INVALID_BOP' in teeth is not a valid periodontal site.");
+    }
+
+    [Fact]
+    public void Validate_WhenPerioAll6SitesValid_ShouldNotHaveAnyErrors()
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: """
+            {
+                "version": "2.22",
+                "teeth": {
+                    "16": {
+                        "toothSelection": "tooth-base",
+                        "perio": {
+                            "pd": { "MB": 3, "B": 2, "DB": 3, "ML": 4, "L": 3, "DL": 4 },
+                            "gm": { "MB": 0, "B": -1, "DB": 0, "ML": 1, "L": 0, "DL": 0 },
+                            "bop": ["MB", "DL"],
+                            "sup": ["DL"]
+                        }
+                    }
+                }
+            }
+            """,
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldNotHaveAnyValidationErrors();
     }
 }
 
