@@ -27,9 +27,11 @@ public static class DependencyInjection
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IEncounterRepository, EncounterRepository>();
 
+        services.AddHttpContextAccessor();
         services.AddSingleton<IDateTimeProvider, Services.DateTimeProvider>();
         services.AddSingleton<IPasswordHasher, Services.PasswordHasher>();
         services.AddScoped<IJwtTokenService, Services.JwtTokenService>();
+        services.AddScoped<ICurrentUserContext, Services.CurrentUserContext>();
 
         return services;
     }
