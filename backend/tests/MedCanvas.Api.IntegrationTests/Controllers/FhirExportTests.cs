@@ -149,7 +149,7 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
         var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
         var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", new DateOnly(1814, 3, 9), "Male", null, null, "MRN-FHIR-3", null, now);
         var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Emergency", now);
-        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", "{ malformed json", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", "{\"corrupt\": true, \"teeth\": \"not-an-object\"}", now);
 
         using (var scope = _factory.Services.CreateScope())
         {
