@@ -20,8 +20,9 @@ public sealed class JwtTokenService : IJwtTokenService
 
     public string GenerateToken(User user, Guid clinicId, MembershipRole role, DateTime expiresAtUtc)
     {
-        var secret = _configuration["Jwt:Key"]
-            ?? "MedCanvasSecureSecretKeyMinimum256BitsLongForTestingPurposesOnly!";
+        var secret = _configuration["Jwt:Secret"]
+            ?? _configuration["Jwt:Key"]
+            ?? "MedCanvasDevelopmentSecretKeyMustBeAtLeast32BytesLongForHmacSha256Security12345";
 
         var issuer = _configuration["Jwt:Issuer"] ?? "MedCanvas.Api";
         var audience = _configuration["Jwt:Audience"] ?? "MedCanvas.Client";
