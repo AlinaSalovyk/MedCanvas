@@ -198,4 +198,109 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithExpiredToken_Returns401Unauthorized()
+    {
+        // Arrange: Token expired 1 hour ago
+        var expiredToken = TestJwtGenerator.GenerateTestToken(
+            userId: Guid.NewGuid(),
+            email: "expired@example.com",
+            clinicId: Guid.NewGuid(),
+            role: "Clinician",
+            expiresAt: DateTime.UtcNow.AddHours(-1));
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", expiredToken);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Expired JWT must return 401 Unauthorized
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithTamperedSignature_Returns401Unauthorized()
+    {
+        // Arrange: Generate valid token and alter payload characters
+        var validToken = TestJwtGenerator.GenerateTestToken(
+            userId: Guid.NewGuid(),
+            email: "tampered@example.com",
+            clinicId: Guid.NewGuid(),
+            role: "Clinician",
+            expiresAt: DateTime.UtcNow.AddHours(1));
+
+        var parts = validToken.Split('.');
+        // Tamper signature part
+        var tamperedSignature = parts[2].Length > 5 ? parts[2][..^5] + "XXXXX" : "invalidSig";
+        var tamperedToken = $"{parts[0]}.{parts[1]}.{tamperedSignature}";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tamperedToken);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Tampered signature must fail cryptographic validation with 401
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithWrongIssuer_Returns401Unauthorized()
+    {
+        // Arrange: Generate token signed with wrong issuer
+        var wrongIssuerToken = TestJwtGenerator.GenerateTestToken(
+            userId: Guid.NewGuid(),
+            email: "wrongissuer@example.com",
+            clinicId: Guid.NewGuid(),
+            role: "Clinician",
+            expiresAt: DateTime.UtcNow.AddHours(1),
+            issuer: "UntrustedExternalIssuer");
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", wrongIssuerToken);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Untrusted issuer must return 401
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithWrongAudience_Returns401Unauthorized()
+    {
+        // Arrange: Generate token signed with wrong audience
+        var wrongAudienceToken = TestJwtGenerator.GenerateTestToken(
+            userId: Guid.NewGuid(),
+            email: "wrongaudience@example.com",
+            clinicId: Guid.NewGuid(),
+            role: "Clinician",
+            expiresAt: DateTime.UtcNow.AddHours(1),
+            audience: "OtherServiceAudience");
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", wrongAudienceToken);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Untrusted audience must return 401
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ProtectedEndpoint_WithMalformedToken_Returns401Unauthorized()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "not.a.valid.jwt.token");
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 }
+
