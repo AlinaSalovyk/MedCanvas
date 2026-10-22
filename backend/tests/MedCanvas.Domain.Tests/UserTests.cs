@@ -89,4 +89,18 @@ public class UserTests
         user.Activate(_now.AddMinutes(20));
         user.IsActive.Should().BeTrue();
     }
+
+    [Fact]
+    public void CreateWithId_SetsPropertiesExplicitly()
+    {
+        var id = Guid.NewGuid();
+        var user = User.CreateWithId(id, "user@example.com", "Full Name", "pwdHash", _now);
+
+        user.Id.Should().Be(id);
+        user.Email.Should().Be("user@example.com");
+        user.FullName.Should().Be("Full Name");
+        user.PasswordHash.Should().Be("pwdHash");
+        user.IsActive.Should().BeTrue();
+    }
 }
+
