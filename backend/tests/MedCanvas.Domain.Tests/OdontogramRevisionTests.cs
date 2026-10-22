@@ -60,4 +60,57 @@ public class OdontogramRevisionTests
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("record");
     }
+
+    [Fact]
+    public void CreateWithId_SetsPropertiesExplicitly()
+    {
+        var id = Guid.NewGuid();
+        var recordId = Guid.NewGuid();
+
+        var rev = OdontogramRevision.CreateWithId(
+            id,
+            recordId,
+            _clinicId,
+            _patientId,
+            _encounterId,
+            revisionNumber: 3,
+            "{\"v\":1}",
+            _userId,
+            "Revision 3 summary",
+            _now);
+
+        rev.Id.Should().Be(id);
+        rev.OdontogramRecordId.Should().Be(recordId);
+        rev.ClinicId.Should().Be(_clinicId);
+        rev.PatientId.Should().Be(_patientId);
+        rev.EncounterId.Should().Be(_encounterId);
+        rev.RevisionNumber.Should().Be(3);
+        rev.SnapshotJson.Should().Be("{\"v\":1}");
+        rev.CreatedByUserId.Should().Be(_userId);
+        rev.ChangeSummary.Should().Be("Revision 3 summary");
+        rev.CreatedAtUtc.Should().Be(_now);
+    }
+
+    [Fact]
+    public void CreateWithId_WithEmptyGuids_ThrowsArgumentException()
+    {
+        var act1 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.Empty, _clinicId, _patientId, _encounterId, 1, "{}", _userId, null, _now);
+        act1.Should().Throw<ArgumentException>().WithParameterName("odontogramRecordId");
+
+        var act2 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, _patientId, _encounterId, 1, "{}", _userId, null, _now);
+        act2.Should().Throw<ArgumentException>().WithParameterName("clinicId");
+
+        var act3 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.NewGuid(), _clinicId, Guid.Empty, _encounterId, 1, "{}", _userId, null, _now);
+        act3.Should().Throw<ArgumentException>().WithParameterName("patientId");
+
+        var act4 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.NewGuid(), _clinicId, _patientId, Guid.Empty, 1, "{}", _userId, null, _now);
+        act4.Should().Throw<ArgumentException>().WithParameterName("encounterId");
+
+        var act5 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.NewGuid(), _clinicId, _patientId, _encounterId, 1, "{}", Guid.Empty, null, _now);
+        act5.Should().Throw<ArgumentException>().WithParameterName("createdByUserId");
+
+        var act6 = () => OdontogramRevision.CreateWithId(Guid.NewGuid(), Guid.NewGuid(), _clinicId, _patientId, _encounterId, 1, "   ", _userId, null, _now);
+        act6.Should().Throw<ArgumentException>().WithParameterName("snapshotJson");
+    }
 }
+
