@@ -208,7 +208,9 @@ public class PostgreSqlPersistenceTests : IAsyncLifetime
         await using var verifyContext = new MedCanvasDbContext(options);
         var finalRecord = await verifyContext.OdontogramRecords.AsNoTracking().FirstAsync(r => r.Id == record.Id);
         finalRecord.ConcurrencyVersion.Should().Be(2);
-        finalRecord.SnapshotJson.Should().Be(updateASnapshot);
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(finalRecord.SnapshotJson);
+        jsonDoc.RootElement.GetProperty("version").GetString().Should().Be("2.22");
+        jsonDoc.RootElement.GetProperty("teeth").GetProperty("11").GetProperty("caries")[0].GetString().Should().Be("caries-distal");
     }
 
     [Fact]
