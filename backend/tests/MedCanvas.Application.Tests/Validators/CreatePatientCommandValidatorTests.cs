@@ -15,12 +15,12 @@ public class CreatePatientCommandValidatorTests
         var command = new CreatePatientCommand(
             FirstName: "Taras",
             LastName: "Shevchenko",
-            BirthDate: new DateOnly(1814, 3, 9),
+            DateOfBirth: new DateOnly(1814, 3, 9),
             Gender: "Male",
             Phone: "+380501234567",
             Email: "taras@example.com",
             ExternalMedicalRecordNumber: "MRN-1814",
-            Notes: "Sample notes");
+            MedicalAlerts: "Sample alerts");
 
         var result = _validator.TestValidate(command);
 
@@ -36,12 +36,12 @@ public class CreatePatientCommandValidatorTests
         var command = new CreatePatientCommand(
             FirstName: invalidName!,
             LastName: "Shevchenko",
-            BirthDate: null,
+            DateOfBirth: null,
             Gender: null,
             Phone: null,
             Email: null,
             ExternalMedicalRecordNumber: null,
-            Notes: null);
+            MedicalAlerts: null);
 
         var result = _validator.TestValidate(command);
 
@@ -55,12 +55,12 @@ public class CreatePatientCommandValidatorTests
         var command = new CreatePatientCommand(
             FirstName: new string('a', 101),
             LastName: "Shevchenko",
-            BirthDate: null,
+            DateOfBirth: null,
             Gender: null,
             Phone: null,
             Email: null,
             ExternalMedicalRecordNumber: null,
-            Notes: null);
+            MedicalAlerts: null);
 
         var result = _validator.TestValidate(command);
 
@@ -77,12 +77,12 @@ public class CreatePatientCommandValidatorTests
         var command = new CreatePatientCommand(
             FirstName: "Taras",
             LastName: invalidName!,
-            BirthDate: null,
+            DateOfBirth: null,
             Gender: null,
             Phone: null,
             Email: null,
             ExternalMedicalRecordNumber: null,
-            Notes: null);
+            MedicalAlerts: null);
 
         var result = _validator.TestValidate(command);
 
@@ -96,12 +96,12 @@ public class CreatePatientCommandValidatorTests
         var command = new CreatePatientCommand(
             FirstName: "Taras",
             LastName: "Shevchenko",
-            BirthDate: null,
+            DateOfBirth: null,
             Gender: null,
             Phone: null,
             Email: "not-an-email",
             ExternalMedicalRecordNumber: null,
-            Notes: null);
+            MedicalAlerts: null);
 
         var result = _validator.TestValidate(command);
 
