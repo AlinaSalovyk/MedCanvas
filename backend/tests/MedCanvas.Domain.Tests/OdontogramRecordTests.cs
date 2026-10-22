@@ -136,4 +136,62 @@ public class OdontogramRecordTests
 
         act.Should().Throw<RecordFinalizedException>();
     }
+
+    [Fact]
+    public void Finalize_WithEmptyUserId_ThrowsArgumentException()
+    {
+        var record = OdontogramRecord.Create(_clinicId, _patientId, _encounterId, "2.22", InitialPayload, _now);
+
+        var act = () => record.Finalize(Guid.Empty, expectedVersion: 1, _now.AddMinutes(10));
+
+        act.Should().Throw<ArgumentException>().WithParameterName("finalizedByUserId");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithBlankPayloadVersion_ThrowsArgumentException(string? invalidVersion)
+    {
+        var act = () => OdontogramRecord.Create(_clinicId, _patientId, _encounterId, invalidVersion!, InitialPayload, _now);
+
+        act.Should().Throw<ArgumentException>().WithParameterName("payloadVersion");
+    }
+
+    [Fact]
+    public void CreateWithId_RehydratesPersistedStateCorrectly()
+    {
+        var id = Guid.NewGuid();
+        var finalizedBy = Guid.NewGuid();
+        var finalizedAt = _now.AddMinutes(15);
+        var updatedAt = _now.AddMinutes(20);
+
+        var record = OdontogramRecord.CreateWithId(
+            id,
+            _clinicId,
+            _patientId,
+            _encounterId,
+            "2.22",
+            InitialPayload,
+            concurrencyVersion: 5,
+            isFinalized: true,
+            finalizedAtUtc: finalizedAt,
+            finalizedByUserId: finalizedBy,
+            createdAtUtc: _now,
+            updatedAtUtc: updatedAt);
+
+        record.Id.Should().Be(id);
+        record.ClinicId.Should().Be(_clinicId);
+        record.PatientId.Should().Be(_patientId);
+        record.EncounterId.Should().Be(_encounterId);
+        record.PayloadVersion.Should().Be("2.22");
+        record.SnapshotJson.Should().Be(InitialPayload);
+        record.ConcurrencyVersion.Should().Be(5);
+        record.IsFinalized.Should().BeTrue();
+        record.FinalizedAtUtc.Should().Be(finalizedAt);
+        record.FinalizedByUserId.Should().Be(finalizedBy);
+        record.CreatedAtUtc.Should().Be(_now);
+        record.UpdatedAtUtc.Should().Be(updatedAt);
+    }
 }
+
