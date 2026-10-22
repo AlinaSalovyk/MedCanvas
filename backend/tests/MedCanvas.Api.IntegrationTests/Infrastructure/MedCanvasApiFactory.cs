@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -26,6 +27,17 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration((ctx, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Secret"] = TestJwtGenerator.DefaultTestSecret,
+                ["Jwt:Issuer"] = TestJwtGenerator.DefaultIssuer,
+                ["Jwt:Audience"] = TestJwtGenerator.DefaultAudience,
+                ["Jwt:ExpiryMinutes"] = "240"
+            });
+        });
 
         builder.ConfigureTestServices(services =>
         {
