@@ -61,4 +61,18 @@ public class ClinicMembershipTests
         membership.Activate(_now.AddHours(2));
         membership.IsActive.Should().BeTrue();
     }
+
+    [Fact]
+    public void CreateWithId_SetsPropertiesExplicitly()
+    {
+        var id = Guid.NewGuid();
+        var membership = ClinicMembership.CreateWithId(id, _clinicId, _userId, MembershipRole.ClinicAdmin, _now);
+
+        membership.Id.Should().Be(id);
+        membership.ClinicId.Should().Be(_clinicId);
+        membership.UserId.Should().Be(_userId);
+        membership.Role.Should().Be(MembershipRole.ClinicAdmin);
+        membership.IsActive.Should().BeTrue();
+    }
 }
+
