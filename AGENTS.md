@@ -153,8 +153,10 @@ npx playwright test --workers=2
 3. **No Direct DOM or React State Binding in API Adapters**: API client adapters must communicate exclusively with `src/odontogram.ts` via state change subscriptions (`onStateChange`) and exported setters/getters.
 4. **Optimistic Locking & Concurrency Preconditions**: The backend database enforces concurrency tokens (`ConcurrencyVersion` / ETag) matching the odontogram payload version. Updates to existing clinical records MUST supply an `If-Match: "\"<version>\""` strong entity-tag matching the body `expectedVersion`. Weak ETags (`W/"..."`), wildcards (`*`), multiple tags, and unquoted numbers return `400 Bad Request` (`https://medcanvas.health/errors/malformed-etag`). Missing preconditions return `428 Precondition Required`, and version mismatches return `412 Precondition Failed`.
 5. **Membership Authorization & Revocation**: Endpoints enforce role-based authorization policies backed by live database verification (`ActiveClinicMembershipHandler`). Revoked or deactivated memberships fail closed immediately, preventing unauthorized clinical mutations even with previously issued JWTs.
-6. **Autosave Race-Condition Safety & Atomic Encounter Switching**: `OdontogramSyncBridge` uses a serialized queue and state machine ensuring at most one write in-flight, revision-tracked save status (preventing premature "saved" reports while local edits remain pending), clean conflict handling on 412, zero silent data overwrites, generation token isolation, and an atomic two-phase encounter switching protocol (Prepare -> Commit). If target encounter fetch fails (HTTP error, 404, 500, invalid JSON, or encounter mismatch), active encounter identity and chart are strictly preserved, preventing cross-patient chart corruption.
-7. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) and [`docs/backend/reference-audit.md`](./docs/backend/reference-audit.md).
+6. **Autosave Race-Condition Safety & Atomic Encounter Switching**: `OdontogramSyncBridge` uses a serialized queue and state machine ensuring at most one write in-flight, revision-tracked save status (preventing premature "saved" reports while local edits remain pending), clean conflict handling on 412, zero silent data overwrites, generation token isolation, and an atomic two-phase encounter switching protocol (Prepare -> Commit). If target encounter fetch fails (HTTP error, 404, 500, invalid JSON, or encounter mismatch), active encounter identity and chart are strictly preserved. If target hydration fails after partial mutation and local rollback also fails, `OdontogramSyncBridge` enters a permanent fail-closed `recovery-required` safety lock, rejecting all writes, auto-sync, loads, and switches until safe `recoverChart(snapshot)` re-establishes chart ownership and integrity.
+7. **Truthful Revision Accounting**: No-op saves (when clean and lacking manual force intent) do not inflate revisions or trigger redundant backend writes. Explicit manual saves (`changeSummary` or `{ force: true }`) are supported and preserved.
+8. **Database Startup Hardening**: Base `appsettings.json` has an empty `DefaultConnection`. In non-development/non-testing environments, startup fails fast if `DefaultConnection` is missing or uses default development credentials (`Username=postgres;Password=postgres`). Production connection credentials must be supplied securely via environment variables or secret managers.
+9. **Full Reference**: Read [`docs/backend-integration-readiness.md`](./docs/backend-integration-readiness.md) and [`docs/backend/reference-audit.md`](./docs/backend/reference-audit.md).
 
 ---
 
@@ -182,7 +184,7 @@ dotnet build backend/MedCanvas.sln --configuration Release
 # Code Formatting Verification
 dotnet format backend/MedCanvas.sln --verify-no-changes
 
-# Full Automated Test Suite with Code Coverage (268 tests passing, 0 failed)
+# Full Automated Test Suite with Code Coverage (279 tests passing, 0 failed)
 dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
 ```
 
