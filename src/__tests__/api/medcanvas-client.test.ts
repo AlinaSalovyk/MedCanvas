@@ -967,5 +967,187 @@ describe("OdontogramSyncBridge", () => {
     // 4. Invariant: Stale B response MUST NOT overwrite active encounter C!
     expect(bridge.getEncounterId()).toBe("enc-C");
   });
+
+  it("locks into recovery-required state when both target hydration and rollback fail during switchEncounter (MC-P0-01)", async () => {
+    const saveSpy = vi.spyOn(client, "saveOdontogram").mockResolvedValue({
+      odontogram: {
+        id: "rec-A",
+        clinicId: "c-1",
+        patientId: "pat-A",
+        encounterId: "enc-A",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    vi.spyOn(client, "getOdontogramByEncounter").mockResolvedValue({
+      odontogram: {
+        id: "rec-B",
+        clinicId: "c-1",
+        patientId: "pat-B",
+        encounterId: "enc-B",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: { "11": { toothSelection: "implant" } } }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-A",
+    });
+
+    // Save Patient A initially
+    await bridge.save();
+    expect(bridge.getStatus()).toBe("saved");
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+
+    // Mock both target hydration and rollback hydration to FAIL
+    mockImportStatus
+      .mockImplementationOnce(() => {
+        throw new Error("Target chart hydration exploded");
+      })
+      .mockImplementationOnce(() => {
+        throw new Error("Rollback chart hydration also exploded");
+      });
+
+    // 1. Invariant: switchEncounter MUST reject with fatal clinical recovery error
+    await expect(bridge.switchEncounter("enc-B")).rejects.toThrow("locked in recovery-required state");
+
+    // 2. Invariant: Bridge must be permanently locked in recovery-required state
+    expect(bridge.getStatus()).toBe("recovery-required");
+    expect(bridge.isLockedForRecovery()).toBe(true);
+
+    // 3. Invariant: Subsequent manual save MUST be rejected — ZERO writes permitted!
+    await expect(bridge.save()).rejects.toThrow("bridge is locked in recovery-required state");
+    expect(saveSpy).toHaveBeenCalledTimes(1); // No new network call!
+
+    // 4. Invariant: Subsequent switch or load MUST be rejected
+    await expect(bridge.switchEncounter("enc-C")).rejects.toThrow("recovery-required");
+    await expect(bridge.load()).rejects.toThrow("recovery-required");
+
+    // 5. Invariant: Recovery fails if verified hydration fails
+    mockImportStatus.mockImplementationOnce(() => {
+      throw new Error("Verified restore still failing");
+    });
+    expect(() => bridge.recoverChart()).toThrow("Failed to recover chart");
+    expect(bridge.getStatus()).toBe("recovery-required");
+    expect(bridge.isLockedForRecovery()).toBe(true);
+
+    // 6. Invariant: Recovery succeeds only when verified hydration passes
+    mockImportStatus.mockImplementationOnce(() => {}); // succeeds
+    bridge.recoverChart({ version: "2.22", teeth: {} });
+    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.isLockedForRecovery()).toBe(false);
+
+    // 7. Normal writes can resume safely after verified recovery
+    await bridge.save("Post recovery save", { force: true });
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("locks into recovery-required state when hydration and rollback fail during direct load() (MC-P0-01)", async () => {
+    vi.spyOn(client, "getOdontogramByEncounter").mockResolvedValue({
+      odontogram: {
+        id: "rec-1",
+        clinicId: "c-1",
+        patientId: "pat-1",
+        encounterId: "enc-1",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-1",
+    });
+
+    mockImportStatus
+      .mockImplementationOnce(() => {
+        throw new Error("Hydration error");
+      })
+      .mockImplementationOnce(() => {
+        throw new Error("Rollback error");
+      });
+
+    await expect(bridge.load()).rejects.toThrow("locked in recovery-required state");
+    expect(bridge.getStatus()).toBe("recovery-required");
+    expect(bridge.isLockedForRecovery()).toBe(true);
+
+    // Any save attempt is rejected
+    await expect(bridge.save()).rejects.toThrow("recovery-required");
+  });
+
+  it("does not increment revision or make redundant network calls on clean no-op saves (MC-P1-01)", async () => {
+    const saveSpy = vi.spyOn(client, "saveOdontogram").mockResolvedValue({
+      odontogram: {
+        id: "rec-1",
+        clinicId: "c-1",
+        patientId: "pat-1",
+        encounterId: "enc-1",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"1"',
+    });
+
+    const bridge = new OdontogramSyncBridge({
+      client,
+      encounterId: "enc-1",
+    });
+
+    // 1. First-time save creates the record on the server
+    const initialRes = await bridge.save();
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.hasUnsavedChanges()).toBe(false);
+
+    // 2. Clean no-op save: no edits occurred, record already saved on server
+    const noOpRes = await bridge.save();
+    // Invariant: MUST NOT make a second network call or inflate server revision
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(noOpRes).toEqual(initialRes);
+    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.hasUnsavedChanges()).toBe(false);
+
+    // 3. Repeated clean no-op save is completely idempotent
+    await bridge.save();
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+
+    // 4. Force save explicitly bypasses no-op check
+    saveSpy.mockResolvedValueOnce({
+      odontogram: {
+        id: "rec-1",
+        clinicId: "c-1",
+        patientId: "pat-1",
+        encounterId: "enc-1",
+        payloadVersion: "2.22",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
+        isFinalized: false,
+        concurrencyVersion: 2,
+        createdAtUtc: "2026-10-22T12:00:00Z",
+      },
+      etag: '"2"',
+    });
+
+    await bridge.save("Explicit force save", { force: true });
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+    expect(bridge.getStatus()).toBe("saved");
+  });
 });
+
 
