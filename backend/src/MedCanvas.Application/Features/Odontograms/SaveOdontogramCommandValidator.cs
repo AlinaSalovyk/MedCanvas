@@ -216,34 +216,55 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
     private static void ValidateToothRecord(string toothKey, JsonElement tooth, string containerName, ValidationContext<SaveOdontogramCommand> context)
     {
         // 1. Tooth selection enum
-        if (tooth.TryGetProperty("toothSelection", out var tsEl) && tsEl.ValueKind == JsonValueKind.String)
+        if (tooth.TryGetProperty("toothSelection", out var tsEl))
         {
-            var ts = tsEl.GetString();
-            if (ts != null && !AllowedToothSelections.Contains(ts))
+            if (tsEl.ValueKind != JsonValueKind.String && tsEl.ValueKind != JsonValueKind.Null)
             {
-                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSelection '{ts}' in {containerName} is not a recognized clinical value.");
+                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSelection in {containerName} must be a string.");
+            }
+            else if (tsEl.ValueKind == JsonValueKind.String)
+            {
+                var ts = tsEl.GetString();
+                if (ts != null && !AllowedToothSelections.Contains(ts))
+                {
+                    context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSelection '{ts}' in {containerName} is not a recognized clinical value.");
+                }
             }
         }
 
         // 2. Tooth substrate enum
         string? toothSubstrate = null;
-        if (tooth.TryGetProperty("toothSubstrate", out var subEl) && subEl.ValueKind == JsonValueKind.String)
+        if (tooth.TryGetProperty("toothSubstrate", out var subEl))
         {
-            toothSubstrate = subEl.GetString();
-            if (toothSubstrate != null && !AllowedToothSubstrates.Contains(toothSubstrate))
+            if (subEl.ValueKind != JsonValueKind.String && subEl.ValueKind != JsonValueKind.Null)
             {
-                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSubstrate '{toothSubstrate}' in {containerName} is not a recognized clinical value.");
+                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSubstrate in {containerName} must be a string.");
+            }
+            else if (subEl.ValueKind == JsonValueKind.String)
+            {
+                toothSubstrate = subEl.GetString();
+                if (toothSubstrate != null && !AllowedToothSubstrates.Contains(toothSubstrate))
+                {
+                    context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' toothSubstrate '{toothSubstrate}' in {containerName} is not a recognized clinical value.");
+                }
             }
         }
 
         // 3. Restoration type and radix invariant
         string? restorationType = null;
-        if (tooth.TryGetProperty("restorationType", out var rtEl) && rtEl.ValueKind == JsonValueKind.String)
+        if (tooth.TryGetProperty("restorationType", out var rtEl))
         {
-            restorationType = rtEl.GetString();
-            if (restorationType != null && !AllowedRestorationTypes.Contains(restorationType))
+            if (rtEl.ValueKind != JsonValueKind.String && rtEl.ValueKind != JsonValueKind.Null)
             {
-                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationType '{restorationType}' in {containerName} is not a recognized clinical value.");
+                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationType in {containerName} must be a string.");
+            }
+            else if (rtEl.ValueKind == JsonValueKind.String)
+            {
+                restorationType = rtEl.GetString();
+                if (restorationType != null && !AllowedRestorationTypes.Contains(restorationType))
+                {
+                    context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationType '{restorationType}' in {containerName} is not a recognized clinical value.");
+                }
             }
         }
 
@@ -253,22 +274,36 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
         }
 
         // 4. Restoration material
-        if (tooth.TryGetProperty("restorationMaterial", out var rmEl) && rmEl.ValueKind == JsonValueKind.String)
+        if (tooth.TryGetProperty("restorationMaterial", out var rmEl))
         {
-            var rm = rmEl.GetString();
-            if (rm != null && !AllowedRestorationMaterials.Contains(rm))
+            if (rmEl.ValueKind != JsonValueKind.String && rmEl.ValueKind != JsonValueKind.Null)
             {
-                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationMaterial '{rm}' in {containerName} is not a recognized clinical value.");
+                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationMaterial in {containerName} must be a string.");
+            }
+            else if (rmEl.ValueKind == JsonValueKind.String)
+            {
+                var rm = rmEl.GetString();
+                if (rm != null && !AllowedRestorationMaterials.Contains(rm))
+                {
+                    context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' restorationMaterial '{rm}' in {containerName} is not a recognized clinical value.");
+                }
             }
         }
 
         // 5. Endo status
-        if (tooth.TryGetProperty("endo", out var endoEl) && endoEl.ValueKind == JsonValueKind.String)
+        if (tooth.TryGetProperty("endo", out var endoEl))
         {
-            var endo = endoEl.GetString();
-            if (endo != null && !AllowedEndoStates.Contains(endo))
+            if (endoEl.ValueKind != JsonValueKind.String && endoEl.ValueKind != JsonValueKind.Null)
             {
-                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' endo '{endo}' in {containerName} is not a recognized clinical value.");
+                context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' endo in {containerName} must be a string.");
+            }
+            else if (endoEl.ValueKind == JsonValueKind.String)
+            {
+                var endo = endoEl.GetString();
+                if (endo != null && !AllowedEndoStates.Contains(endo))
+                {
+                    context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' endo '{endo}' in {containerName} is not a recognized clinical value.");
+                }
             }
         }
 
@@ -330,13 +365,16 @@ public sealed class SaveOdontogramCommandValidator : AbstractValidator<SaveOdont
             {
                 foreach (var item in fillingSurfacesEl.EnumerateArray())
                 {
-                    if (item.ValueKind == JsonValueKind.String)
+                    if (item.ValueKind != JsonValueKind.String)
                     {
-                        var surf = item.GetString();
-                        if (surf != null && !AllowedFillingSurfaces.Contains(surf))
-                        {
-                            context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' filling surface '{surf}' in {containerName} is not a valid dental surface indicator.");
-                        }
+                        context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' filling surface item in {containerName} must be a surface string.");
+                        break;
+                    }
+
+                    var surf = item.GetString();
+                    if (surf != null && !AllowedFillingSurfaces.Contains(surf))
+                    {
+                        context.AddFailure("SnapshotJson", $"Tooth '{toothKey}' filling surface '{surf}' in {containerName} is not a valid dental surface indicator.");
                     }
                 }
             }

@@ -457,5 +457,28 @@ public class SaveOdontogramCommandValidatorTests
 
         result.ShouldNotHaveAnyValidationErrors();
     }
+
+    [Theory]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"toothSelection": 123}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"toothSelection": true}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"toothSubstrate": 42}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"restorationType": []}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"restorationMaterial": false}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"endo": {}}}}""", "must be a string")]
+    [InlineData("""{"version":"2.22","teeth":{"16":{"fillingSurfaces": [123]}}}""", "must be a surface string")]
+    public void Validate_WhenClinicalEnumHasNonStringType_ShouldHaveValidationError(string snapshotJson, string expectedErrorMessage)
+    {
+        var command = new SaveOdontogramCommand(
+            EncounterId: Guid.NewGuid(),
+            SnapshotJson: snapshotJson,
+            ExpectedVersion: null,
+            ChangeSummary: null);
+
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.SnapshotJson)
+            .Where(e => e.ErrorMessage.Contains(expectedErrorMessage));
+    }
 }
+
 
