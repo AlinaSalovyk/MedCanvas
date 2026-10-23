@@ -9,6 +9,22 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Database connection configuration validation
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!builder.Environment.IsDevelopment() && !builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("Fatal configuration error: 'ConnectionStrings:DefaultConnection' is missing in non-development environment. A secure connection string must be configured via environment variables or secret provider.");
+    }
+
+    if (connectionString.Contains("Password=postgres", StringComparison.OrdinalIgnoreCase) ||
+        connectionString.Contains("Username=postgres", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Fatal security error: 'ConnectionStrings:DefaultConnection' contains default development credentials (Username=postgres/Password=postgres) in a non-development environment. Secure credentials are required.");
+    }
+}
+
 // Application layer services (MediatR, FluentValidation, Pipeline behaviors)
 builder.Services.AddApplicationServices();
 
