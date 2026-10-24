@@ -12,6 +12,8 @@ using MedCanvas.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
+using MedCanvas.Tests.Data;
+
 namespace MedCanvas.Api.IntegrationTests.Controllers;
 
 public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetime
@@ -30,27 +32,7 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private const string SampleValidPayload = """
-    {
-        "version": "2.22",
-        "globals": {
-            "missingTeeth": ["18", "28", "38", "48"],
-            "implantTeeth": ["16"]
-        },
-        "teeth": {
-            "11": { "caries": { "distal": { "icdas": 2 } }, "restoration": { "type": "none" } },
-            "16": { "implant": true, "restoration": { "type": "crown", "material": "zirconia" } },
-            "21": { "toothSelection": "permanent" }
-        },
-        "case": {
-            "patientName": "Synthetic Test Patient",
-            "chartMode": "status"
-        },
-        "plan": {
-            "11": { "planRestoration": { "type": "composite", "shade": "A2" } }
-        }
-    }
-    """;
+    private static readonly string SampleValidPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
 
     [Fact]
     public async Task SaveOdontogram_InitialSave_PersistsJsonbSnapshotAndReturnsETag()
@@ -95,11 +77,13 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
         result.IsFinalized.Should().BeFalse();
         result.PayloadVersion.Should().Be("2.22");
 
-        // Verify JSON round-trip equivalence
-        using var expectedDoc = JsonDocument.Parse(SampleValidPayload);
+        // Verify JSON round-trip equivalence with canonical frontend array format
         using var actualDoc = JsonDocument.Parse(result.SnapshotJson);
         actualDoc.RootElement.GetProperty("version").GetString().Should().Be("2.22");
-        actualDoc.RootElement.GetProperty("teeth").GetProperty("11").GetProperty("caries").GetProperty("distal").GetProperty("icdas").GetInt32().Should().Be(2);
+        var cariesArray = actualDoc.RootElement.GetProperty("teeth").GetProperty("11").GetProperty("caries").EnumerateArray().Select(e => e.GetString()).ToList();
+        cariesArray.Should().Contain("caries-distal");
+        cariesArray.Should().Contain("caries-mesial");
+        actualDoc.RootElement.GetProperty("teeth").GetProperty("11").GetProperty("cariesSeverity").GetProperty("distal").GetInt32().Should().Be(3);
     }
 
     [Fact]
@@ -140,6 +124,186 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
 
         // Assert - Concurrency conflict must return HTTP 412 Precondition Failed
         response.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_MissingPreconditionOnExistingRecord_Returns428PreconditionRequired()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", SampleValidPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            db.OdontogramRecords.Add(record);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Send update without If-Match header and without ExpectedVersion in body
+        var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload, ExpectedVersion: null))
+        };
+
+        // Act
+        var response = await client.SendAsync(httpRequest);
+
+        // Assert - CON-01 safety invariant: missing precondition on update MUST return 428 Precondition Required
+        response.StatusCode.Should().Be((HttpStatusCode)428);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_MalformedIfMatchHeader_Returns400BadRequest()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload))
+        };
+        httpRequest.Headers.IfMatch.Add(new EntityTagHeaderValue("\"not-an-integer\""));
+
+        // Act
+        var response = await client.SendAsync(httpRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_HeaderAndBodyVersionMismatch_Returns400BadRequest()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload, ExpectedVersion: 2))
+        };
+        httpRequest.Headers.IfMatch.Add(new EntityTagHeaderValue("\"1\""));
+
+        // Act
+        var response = await client.SendAsync(httpRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WhenUserHasViewerRole_Returns403Forbidden()
+    {
+        // Arrange - SEC-02: Viewer role cannot mutate clinical odontogram
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("viewer@smiledental.com", "Clinical Viewer", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Viewer, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Viewer);
+
+        var request = new SaveOdontogramRequest(SnapshotJson: SampleValidPayload);
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/v1/encounters/{encounter.Id}/odontogram", request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WhenMembershipIsDeactivatedInDb_Returns403Forbidden()
+    {
+        // Arrange - AUTH-01: Revoked membership fails closed even with prior JWT
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("revoked@smiledental.com", "Dr. Revoked", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        membership.Deactivate(now); // Revoked membership
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new SaveOdontogramRequest(SnapshotJson: SampleValidPayload);
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/v1/encounters/{encounter.Id}/odontogram", request);
+
+        // Assert - Handler verifies live DB active status and fails closed
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -294,5 +458,314 @@ public class OdontogramsControllerTests : IClassFixture<MedCanvasApiFactory>, IA
         revisions![0].RevisionNumber.Should().Be(2);
         revisions[0].ChangeSummary.Should().Be("Revision 2");
         revisions[1].RevisionNumber.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task FinalizeOdontogram_WithIfMatchHeaderAndNoBody_SealsRecordAndIncrementsVersion()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", SampleValidPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            db.OdontogramRecords.Add(record);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Act - Call finalize with body-less POST and strong If-Match header
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/encounters/{encounter.Id}/odontogram/finalize");
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"1\""));
+
+        var response = await client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<OdontogramResponseDto>();
+        result.Should().NotBeNull();
+        result!.IsFinalized.Should().BeTrue();
+        result.ConcurrencyVersion.Should().Be(2);
+        response.Headers.ETag!.Tag.Should().Be("\"2\"");
+    }
+
+    [Fact]
+    public async Task FinalizeOdontogram_WithoutPrecondition_Returns428PreconditionRequired()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", SampleValidPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            db.OdontogramRecords.Add(record);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Act - Call finalize with no body and no If-Match header
+        var response = await client.PostAsync($"/api/v1/encounters/{encounter.Id}/odontogram/finalize", null);
+
+        // Assert
+        response.StatusCode.Should().Be((HttpStatusCode)428);
+    }
+
+    [Fact]
+    public async Task FinalizeOdontogram_WithWeakIfMatchHeader_Returns400BadRequest()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/encounters/{encounter.Id}/odontogram/finalize");
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"1\"", isWeak: true));
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WithWeakIfMatchHeader_Returns400BadRequest()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload))
+        };
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"1\"", isWeak: true));
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WithWildcardIfMatchHeader_Returns400BadRequest()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload))
+        };
+        request.Headers.IfMatch.Add(EntityTagHeaderValue.Any);
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WithMultipleIfMatchETags_Returns400BadRequest()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload))
+        };
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"1\""));
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"2\""));
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WithUnquotedIfMatchHeader_Returns400BadRequest()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", null, null, null, null, "MRN-1", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/encounters/{encounter.Id}/odontogram")
+        {
+            Content = JsonContent.Create(new SaveOdontogramRequest(SnapshotJson: SampleValidPayload))
+        };
+        // Raw unquoted value
+        request.Headers.TryAddWithoutValidation("If-Match", "1");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_WhenEncounterBelongsToAnotherClinic_Returns404NotFound()
+    {
+        // Arrange - Anti-IDOR: User from Clinic A cannot mutate odontogram of Clinic B
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "CLINIC-A", now);
+        var clinicB = Clinic.Create("Clinic B", "CLINIC-B", now);
+
+        var userA = User.Create("dr.a@clinica.com", "Dr. A", "hash", now);
+        var membershipA = ClinicMembership.Create(clinicA.Id, userA.Id, MembershipRole.Clinician, now);
+
+        var patientB = Patient.Create(clinicB.Id, "Foreign", "Patient", null, null, null, null, "MRN-B", null, now);
+        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, userA.Id, now, "Exam", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.AddRange(clinicA, clinicB);
+            db.Users.Add(userA);
+            db.ClinicMemberships.Add(membershipA);
+            db.Patients.Add(patientB);
+            db.DentalEncounters.Add(encounterB);
+            await db.SaveChangesAsync();
+        }
+
+        var clientA = _factory.CreateAuthenticatedClient(userA, clinicA.Id, MembershipRole.Clinician);
+
+        // Act - Clinician from clinic A tries to mutate odontogram for encounter in clinic B
+        var response = await clientA.PutAsJsonAsync($"/api/v1/encounters/{encounterB.Id}/odontogram",
+            new SaveOdontogramRequest(SnapshotJson: SampleValidPayload));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetOdontogram_WhenEncounterBelongsToAnotherClinic_Returns404NotFound()
+    {
+        // Arrange - Anti-IDOR: User from Clinic A cannot view odontogram of Clinic B
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "CLINIC-A", now);
+        var clinicB = Clinic.Create("Clinic B", "CLINIC-B", now);
+
+        var userA = User.Create("dr.a@clinica.com", "Dr. A", "hash", now);
+        var membershipA = ClinicMembership.Create(clinicA.Id, userA.Id, MembershipRole.Clinician, now);
+
+        var patientB = Patient.Create(clinicB.Id, "Foreign", "Patient", null, null, null, null, "MRN-B", null, now);
+        var encounterB = DentalEncounter.Start(clinicB.Id, patientB.Id, userA.Id, now, "Exam", now);
+        var recordB = OdontogramRecord.Create(clinicB.Id, patientB.Id, encounterB.Id, "2.22", SampleValidPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.AddRange(clinicA, clinicB);
+            db.Users.Add(userA);
+            db.ClinicMemberships.Add(membershipA);
+            db.Patients.Add(patientB);
+            db.DentalEncounters.Add(encounterB);
+            db.OdontogramRecords.Add(recordB);
+            await db.SaveChangesAsync();
+        }
+
+        var clientA = _factory.CreateAuthenticatedClient(userA, clinicA.Id, MembershipRole.Clinician);
+
+        // Act
+        var response = await clientA.GetAsync($"/api/v1/encounters/{encounterB.Id}/odontogram");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -9,6 +9,7 @@ import type {
   DentalEncounterDto,
   StartEncounterRequest,
   CompleteEncounterRequest,
+  CancelEncounterRequest,
   OdontogramResponseDto,
   SaveOdontogramRequest,
   OdontogramRevisionDto,
@@ -212,13 +213,15 @@ export class MedCanvasApiClient {
   public async completeEncounter(id: string, req?: CompleteEncounterRequest): Promise<void> {
     await this.request<void>(`/encounters/${id}/complete`, {
       method: "POST",
-      body: JSON.stringify(req || {}),
+      body: req ? JSON.stringify(req) : undefined,
     });
   }
 
-  public async cancelEncounter(id: string): Promise<void> {
+  public async cancelEncounter(id: string, req?: CancelEncounterRequest | string): Promise<void> {
+    const body = typeof req === "string" ? { reason: req } : req;
     await this.request<void>(`/encounters/${id}/cancel`, {
       method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
     });
   }
 

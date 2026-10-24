@@ -1,7 +1,10 @@
+using MedCanvas.Api.Common;
+using MedCanvas.Application.Common.Security;
 using MedCanvas.Application.Features.Odontograms;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace MedCanvas.Api.Controllers;
 
@@ -10,7 +13,7 @@ public sealed record SaveOdontogramRequest(
     int? ExpectedVersion = null,
     string? ChangeSummary = null);
 
-public sealed record FinalizeOdontogramRequest(int ExpectedVersion);
+public sealed record FinalizeOdontogramRequest(int? ExpectedVersion = null);
 
 [ApiController]
 [Authorize]
@@ -25,26 +28,28 @@ public sealed class OdontogramsController : ControllerBase
     }
 
     [HttpPut("encounters/{encounterId:guid}/odontogram")]
+    [Authorize(Policy = Policies.CanMutateOdontogram)]
     [ProducesResponseType(typeof(OdontogramResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Save(
         [FromRoute] Guid encounterId,
         [FromBody] SaveOdontogramRequest request,
         CancellationToken cancellationToken)
     {
-        int? expectedVersion = request.ExpectedVersion;
+        var (isValid, expectedVersion, problem) = IfMatchPreconditionParser.ParseIfMatchHeader(
+            Request.Headers,
+            HttpContext.Request.Path,
+            request.ExpectedVersion);
 
-        if (Request.Headers.TryGetValue("If-Match", out var ifMatch) && !string.IsNullOrWhiteSpace(ifMatch))
+        if (!isValid)
         {
-            var raw = ifMatch.ToString().Trim('\"', ' ');
-            if (int.TryParse(raw, out var parsed))
-            {
-                expectedVersion = parsed;
-            }
+            return BadRequest(problem);
         }
 
         var command = new SaveOdontogramCommand(
@@ -59,36 +64,53 @@ public sealed class OdontogramsController : ControllerBase
     }
 
     [HttpPost("encounters/{encounterId:guid}/odontogram/finalize")]
+    [Authorize(Policy = Policies.CanFinalizeOdontogram)]
     [ProducesResponseType(typeof(OdontogramResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Finalize(
         [FromRoute] Guid encounterId,
-        [FromBody] FinalizeOdontogramRequest request,
-        CancellationToken cancellationToken)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] FinalizeOdontogramRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
-        var expectedVersion = request.ExpectedVersion;
+        var (isValid, expectedVersion, problem) = IfMatchPreconditionParser.ParseIfMatchHeader(
+            Request.Headers,
+            HttpContext.Request.Path,
+            request?.ExpectedVersion);
 
-        if (Request.Headers.TryGetValue("If-Match", out var ifMatch) && !string.IsNullOrWhiteSpace(ifMatch))
+        if (!isValid)
         {
-            var raw = ifMatch.ToString().Trim('\"', ' ');
-            if (int.TryParse(raw, out var parsed))
-            {
-                expectedVersion = parsed;
-            }
+            return BadRequest(problem);
         }
 
-        var command = new FinalizeOdontogramCommand(encounterId, expectedVersion);
+        if (!expectedVersion.HasValue)
+        {
+            return StatusCode(StatusCodes.Status428PreconditionRequired, new ProblemDetails
+            {
+                Type = "https://medcanvas.health/errors/precondition-required",
+                Title = "Precondition Required",
+                Status = StatusCodes.Status428PreconditionRequired,
+                Detail = "An If-Match header or expectedVersion property is required to finalize an existing clinical record.",
+                Instance = HttpContext.Request.Path
+            });
+        }
+
+        var command = new FinalizeOdontogramCommand(encounterId, expectedVersion.Value);
         var result = await _sender.Send(command, cancellationToken);
         Response.Headers.ETag = result.ETag;
         return Ok(result);
     }
 
     [HttpGet("encounters/{encounterId:guid}/odontogram")]
+    [Authorize(Policy = Policies.CanReadOdontogram)]
     [ProducesResponseType(typeof(OdontogramResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByEncounter([FromRoute] Guid encounterId, CancellationToken cancellationToken)
     {
@@ -98,8 +120,10 @@ public sealed class OdontogramsController : ControllerBase
     }
 
     [HttpGet("patients/{patientId:guid}/odontogram/latest")]
+    [Authorize(Policy = Policies.CanReadOdontogram)]
     [ProducesResponseType(typeof(OdontogramResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetLatestByPatient([FromRoute] Guid patientId, CancellationToken cancellationToken)
     {
@@ -109,8 +133,10 @@ public sealed class OdontogramsController : ControllerBase
     }
 
     [HttpGet("encounters/{encounterId:guid}/odontogram/revisions")]
+    [Authorize(Policy = Policies.CanReadOdontogram)]
     [ProducesResponseType(typeof(IReadOnlyList<OdontogramRevisionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRevisions([FromRoute] Guid encounterId, CancellationToken cancellationToken)
     {
@@ -119,9 +145,11 @@ public sealed class OdontogramsController : ControllerBase
     }
 
     [HttpGet("encounters/{encounterId:guid}/fhir")]
+    [Authorize(Policy = Policies.CanExportFhir)]
     [Produces("application/fhir+json")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFhirBundle([FromRoute] Guid encounterId, CancellationToken cancellationToken)
     {

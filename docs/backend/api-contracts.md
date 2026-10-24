@@ -9,12 +9,14 @@
 
 ## 1. Global API Standards & Conventions
 
-### 1.1 HTTP Headers & Concurrency Tokens
-- `Authorization: Bearer <jwt-token>` (Required on all endpoints except health checks and login).
+#### 1.1 HTTP Headers & Concurrency Tokens
+- `Authorization: Bearer <jwt-token>` (Required on all endpoints except login).
 - `Content-Type: application/json`
-- `ETag: "W/\"<concurrency-version>\""` (Returned on all Odontogram GET responses).
-- `If-Match: "W/\"<concurrency-version>\""` (Required or validated on Odontogram PUT updates).
-- If the version in `If-Match` does not match the database `ConcurrencyVersion`, the API immediately returns `412 Precondition Failed` or `409 Conflict`.
+- `ETag: "\"<concurrency-version>\""` (Strong entity-tag returned on all Odontogram GET, PUT, and Finalize responses).
+- `If-Match: "\"<concurrency-version>\""` (Strong entity-tag required on Odontogram updates and finalize).
+- Weak ETags (`W/"..."`), wildcards (`*`), multiple tags, and unquoted values are rejected with `400 Bad Request` (`https://medcanvas.health/errors/malformed-etag`).
+- If missing on update of an existing record, the API returns `428 Precondition Required`.
+- If the version in `If-Match` does not match the database `ConcurrencyVersion`, the API returns `412 Precondition Failed`.
 
 ### 1.2 RFC 7807 Standard Error Envelope
 All error responses (4xx, 5xx) strictly follow the RFC 7807 ProblemDetails format:
@@ -27,7 +29,7 @@ All error responses (4xx, 5xx) strictly follow the RFC 7807 ProblemDetails forma
   "detail": "One or more validation errors occurred.",
   "instance": "/api/v1/encounters/a812.../odontogram",
   "errors": {
-    "payload.teeth.18.cariesActiveDepth": ["The active ICDAS depth must be an integer between 1 and 6."]
+    "SnapshotJson": ["The active ICDAS depth must be an integer between 1 and 6."]
   }
 }
 ```
@@ -39,37 +41,8 @@ All error responses (4xx, 5xx) strictly follow the RFC 7807 ProblemDetails forma
 ### 2.1 Authentication & Session
 | Method | Route | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/login` | Authenticate clinician; returns JWT and accessible clinics | Anonymous |
-| `POST` | `/api/v1/auth/refresh` | Refresh an active JWT session | Bearer |
+| `POST` | `/api/v1/auth/login` | Authenticate clinician; returns JWT and active clinic membership | Anonymous |
 | `GET` | `/api/v1/auth/me` | Fetch active user profile and active clinic membership | Bearer |
-
-#### `POST /api/v1/auth/login`
-- **Request Body**:
-  ```json
-  {
-    "email": "dr.smith@dentalcare.com",
-    "password": "SecurePassword123!"
-  }
-  ```
-- **Response `200 OK`**:
-  ```json
-  {
-    "token": "eyJhbGciOi...",
-    "expiresAtUtc": "2026-10-23T16:00:00Z",
-    "user": {
-      "id": "7fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "email": "dr.smith@dentalcare.com",
-      "fullName": "Dr. Sarah Smith"
-    },
-    "memberships": [
-      {
-        "clinicId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        "clinicName": "Metropolitan Dental Clinic",
-        "role": "Clinician"
-      }
-    ]
-  }
-  ```
 
 ---
 
@@ -78,36 +51,22 @@ All patient operations are scoped to the authenticated caller's active `clinicId
 
 | Method | Route | Description |
 |---|---|---|
-| `GET` | `/api/v1/patients` | Search patients with pagination (`searchTerm`, `page`, `pageSize`) |
-| `GET` | `/api/v1/patients/{patientId}` | Retrieve detailed patient record |
+| `GET` | `/api/v1/patients` | Search patients with pagination (`search`/`searchTerm`, `page`/`pageNumber`, `pageSize`) |
+| `GET` | `/api/v1/patients/{id}` | Retrieve detailed patient record |
 | `POST` | `/api/v1/patients` | Register a new patient in the active clinic |
-| `PUT` | `/api/v1/patients/{patientId}` | Update patient demographics and medical alerts |
-
-#### `POST /api/v1/patients`
-- **Request Body**:
-  ```json
-  {
-    "externalMedicalRecordNumber": "MRN-2026-089",
-    "firstName": "Alexander",
-    "lastName": "Petrenko",
-    "dateOfBirth": "1985-06-20",
-    "gender": "Male",
-    "phone": "+380501234567",
-    "email": "alex.petrenko@example.com",
-    "medicalAlerts": "Penicillin allergy; Mild hypertension."
-  }
-  ```
-- **Response `201 Created`**: Returns created Patient DTO with `Location` header.
+| `PUT` | `/api/v1/patients/{id}` | Update patient demographics and medical alerts |
+| `GET` | `/api/v1/patients/{id}/encounters` | List all encounters for a patient (chronological) |
 
 ---
 
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|
-| `GET` | `/api/v1/patients/{patientId}/encounters` | List all encounters for a patient (chronological) |
-| `GET` | `/api/v1/encounters/{encounterId}` | Get single encounter details |
-| `POST` | `/api/v1/patients/{patientId}/encounters` | Create a new clinical examination encounter |
-| `PUT` | `/api/v1/encounters/{encounterId}/status` | Update encounter status (`InProgress`, `Completed`) |
+| `POST` | `/api/v1/encounters` | Start a new clinical encounter (`patientId`, optional `chiefComplaint`) |
+| `GET` | `/api/v1/encounters/{id}` | Get single encounter details |
+| `GET` | `/api/v1/encounters/by-patient/{patientId}` | List all encounters for a patient |
+| `POST` | `/api/v1/encounters/{id}/complete` | Complete encounter (optional `clinicalSummary` body) |
+| `POST` | `/api/v1/encounters/{id}/cancel` | Cancel encounter (optional `reason` body) |
 
 ---
 
@@ -118,16 +77,22 @@ These endpoints handle the lossless canonical JSON odontogram state.
 |---|---|---|
 | `GET` | `/api/v1/encounters/{encounterId}/odontogram` | Get active odontogram snapshot + ETag |
 | `GET` | `/api/v1/patients/{patientId}/odontogram/latest` | Get latest active odontogram across all encounters |
-| `PUT` | `/api/v1/encounters/{encounterId}/odontogram` | Save/update canonical odontogram payload (optimistic lock) |
-| `POST` | `/api/v1/encounters/{encounterId}/odontogram/finalize` | Finalize record (seal against edits, create immutable revision) |
+| `PUT` | `/api/v1/encounters/{encounterId}/odontogram` | Save/update canonical odontogram payload (optimistic lock with `If-Match`) |
+| `POST` | `/api/v1/encounters/{encounterId}/odontogram/finalize` | Finalize record (seal against edits; body optional with `If-Match`) |
 | `GET` | `/api/v1/encounters/{encounterId}/odontogram/revisions` | List historical revision numbers and timestamps |
-| `GET` | `/api/v1/encounters/{encounterId}/odontogram/revisions/{revNumber}` | Fetch specific historical snapshot |
-| `GET` | `/api/v1/encounters/{encounterId}/odontogram/fhir` | Generate on-demand HL7® FHIR® R4 Bundle export |
+| `GET` | `/api/v1/encounters/{encounterId}/fhir` | Generate on-demand HL7® FHIR® R4 Bundle export |
 
 #### `PUT /api/v1/encounters/{encounterId}/odontogram`
 - **Headers**:
   - `If-Match: "2"`
-- **Request Body**: Complete canonical frontend payload (`version`, `globals`, `teeth`, optional `case`, optional `plan`).
+- **Request Body**:
+  ```json
+  {
+    "snapshotJson": "{\"version\":\"2.22\",\"globals\":{...},\"teeth\":{...}}",
+    "expectedVersion": 2,
+    "changeSummary": "Filled distal on tooth 11"
+  }
+  ```).
 - **Response `200 OK`**:
   ```json
   {

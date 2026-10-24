@@ -31,7 +31,7 @@ In the reference backend audit (`docs/backend/reference-audit.md`), critical sec
 
 3. **Hardcoded Secrets**:
    - *Reference anti-pattern*: Database passwords, JWT secret keys, and connection strings committed in plaintext in `appsettings.json`.
-   - *MedCanvas Standard*: Development configurations use local placeholders; production uses environment variables (`MEDCANVAS__JWT__KEY`, etc.) or Azure Key Vault / Secret Manager. Never commit real keys.
+   - *MedCanvas Standard*: Base `appsettings.json` contains an empty `DefaultConnection`. Local developer credentials reside in `appsettings.Development.json` or User Secrets. In non-development/non-testing environments, startup fails fast if `DefaultConnection` is missing or contains default development credentials (`Username=postgres;Password=postgres`). Production credentials must be supplied securely via environment variables (`ConnectionStrings__DefaultConnection`) or secret management systems. Never commit production keys.
 
 4. **Zero Auditing of Sensitive Operations**:
    - *Reference anti-pattern*: Data modifications occurred without recording who made the change or why.

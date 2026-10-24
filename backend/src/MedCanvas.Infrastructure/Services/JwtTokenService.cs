@@ -20,9 +20,11 @@ public sealed class JwtTokenService : IJwtTokenService
 
     public string GenerateToken(User user, Guid clinicId, MembershipRole role, DateTime expiresAtUtc)
     {
-        var secret = _configuration["Jwt:Secret"]
-            ?? _configuration["Jwt:Key"]
-            ?? "MedCanvasDevelopmentSecretKeyMustBeAtLeast32BytesLongForHmacSha256Security12345";
+        var secret = _configuration["Jwt:Secret"] ?? _configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)
+        {
+            throw new InvalidOperationException("Fatal security error: 'Jwt:Secret' configuration is missing or shorter than 256 bits (32 bytes).");
+        }
 
         var issuer = _configuration["Jwt:Issuer"] ?? "MedCanvas.Api";
         var audience = _configuration["Jwt:Audience"] ?? "MedCanvas.Client";

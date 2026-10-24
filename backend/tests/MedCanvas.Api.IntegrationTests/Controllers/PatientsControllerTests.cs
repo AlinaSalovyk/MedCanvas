@@ -113,8 +113,11 @@ public class PatientsControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyn
         // Act
         var response = await client.PostAsJsonAsync("/api/v1/patients", command);
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // Assert - Typed conflict returns 409 and never reflects sensitive MRN
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var responseContent = await response.Content.ReadAsStringAsync();
+        responseContent.Should().NotContain("MRN-DUPLICATE");
+        responseContent.Should().Contain("A patient with this medical record number already exists in this clinic.");
     }
 
     [Fact]

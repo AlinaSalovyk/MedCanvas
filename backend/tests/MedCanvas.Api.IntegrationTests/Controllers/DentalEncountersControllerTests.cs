@@ -154,6 +154,50 @@ public class DentalEncountersControllerTests : IClassFixture<MedCanvasApiFactory
     }
 
     [Fact]
+    public async Task CompleteEncounter_WithClinicalSummary_PersistsSummaryAndReturns200()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Lesya", "Ukrainka", null, null, null, null, "MRN-LESYA-2", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Routine checkup", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new CompleteEncounterRequest(ClinicalSummary: "Finished filling restoration on tooth 16.");
+
+        // Act
+        var response = await client.PostAsJsonAsync($"/api/v1/encounters/{encounter.Id}/complete", request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<EncounterDto>();
+        result.Should().NotBeNull();
+        result!.Status.Should().Be("Completed");
+        result.ClinicalNotes.Should().Contain("Finished filling restoration on tooth 16.");
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            var saved = await db.DentalEncounters.FindAsync(encounter.Id);
+            saved!.ClinicalNotes.Should().Contain("Finished filling restoration on tooth 16.");
+        }
+    }
+
+    [Fact]
     public async Task CancelEncounter_WhenInProgress_Returns200AndRecordsCancellationReason()
     {
         // Arrange
@@ -188,6 +232,41 @@ public class DentalEncountersControllerTests : IClassFixture<MedCanvasApiFactory
         result.Should().NotBeNull();
         result!.Status.Should().Be("Cancelled");
         result.ClinicalNotes.Should().Contain("Patient did not arrive");
+    }
+
+    [Fact]
+    public async Task CancelEncounter_WithEmptyBody_Returns200AndRecordsDefaultReason()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Ivan", "Franko", null, null, null, null, "MRN-FRANKO-2", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Consultation", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Act - POST with no body (null content) as frontend client does
+        var response = await client.PostAsync($"/api/v1/encounters/{encounter.Id}/cancel", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<EncounterDto>();
+        result.Should().NotBeNull();
+        result!.Status.Should().Be("Cancelled");
+        result.ClinicalNotes.Should().Contain("[CANCELLED: Encounter cancelled]");
     }
 
     [Fact]

@@ -40,7 +40,7 @@ public sealed class CompleteEncounterCommandHandler : IRequestHandler<CompleteEn
         }
 
         var now = _dateTimeProvider.UtcNow;
-        encounter.Complete(now);
+        encounter.Complete(now, request.ClinicalSummary);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

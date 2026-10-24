@@ -17,8 +17,10 @@ import type { Any } from "@/engine/types";
 export type ApplyToSelectedFn = (fn: (state: Any, toothNo?: number) => void) => void;
 
 export function hideCariesDepthPopup(): void {
-  const p = document.querySelector(".odon-depth-popup");
-  if(p) p.remove();
+  if (typeof document !== "undefined") {
+    const p = document.querySelector(".odon-depth-popup");
+    if(p) p.remove();
+  }
 }
 
 export function showCariesDepthPopup(
@@ -103,12 +105,16 @@ export function showCariesDepthPopup(
   const onKey = (e: Any)=>{ if(e.key === "Escape") cleanup(); };
   function cleanup(){
     hideCariesDepthPopup();
-    document.removeEventListener("mousedown", onDoc, true);
-    document.removeEventListener("keydown", onKey, true);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("keydown", onKey, true);
+    }
   }
   setTimeout(()=>{
-    document.addEventListener("mousedown", onDoc, true);
-    document.addEventListener("keydown", onKey, true);
+    if (typeof document !== "undefined") {
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }
   }, 0);
 }
 
@@ -156,11 +162,15 @@ export function showFillingDefectPopup(
   const onKey = (e: Any)=>{ if(e.key === "Escape") cleanup(); };
   function cleanup(){
     hideCariesDepthPopup();
-    document.removeEventListener("mousedown", onDoc, true);
-    document.removeEventListener("keydown", onKey, true);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("keydown", onKey, true);
+    }
   }
   setTimeout(()=>{
-    document.addEventListener("mousedown", onDoc, true);
-    document.addEventListener("keydown", onKey, true);
+    if (typeof document !== "undefined") {
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }
   }, 0);
 }

@@ -96,6 +96,10 @@ export interface CompleteEncounterRequest {
   clinicalSummary?: string | null;
 }
 
+export interface CancelEncounterRequest {
+  reason?: string | null;
+}
+
 export interface OdontogramResponseDto {
   id: string;
   clinicId: string;

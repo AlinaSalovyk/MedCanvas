@@ -76,9 +76,14 @@ public sealed class SaveOdontogramCommandHandler : IRequestHandler<SaveOdontogra
         }
         else
         {
+            if (!request.ExpectedVersion.HasValue)
+            {
+                throw new PreconditionRequiredException(
+                    "An If-Match header or expectedVersion property is required to update an existing clinical odontogram record.");
+            }
+
             record = existingRecord;
-            var expectedVersion = request.ExpectedVersion ?? record.ConcurrencyVersion;
-            record.UpdatePayload(request.SnapshotJson, expectedVersion, now);
+            record.UpdatePayload(request.SnapshotJson, request.ExpectedVersion.Value, now);
         }
 
         var revision = OdontogramRevision.Create(

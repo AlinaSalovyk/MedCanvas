@@ -120,3 +120,28 @@ For every implemented vertical slice (e.g. Patients, Encounters, Odontograms):
    dotnet test backend/MedCanvas.sln --configuration Release --collect:"XPlat Code Coverage"
    ```
 4. **Zero Skipped or Ignored Tests**: Never commit commented-out or skipped tests without explicit documented justification.
+
+---
+
+## 6. Persistent Verification & Quality Invariants
+
+All future agents modifying or adding backend code MUST adhere strictly to the following rules:
+
+1. **Every New Feature Requires Tests**: No feature is complete without accompanying Domain, Application, and API integration tests.
+2. **Every Bug Fix Requires Regression Coverage**: Every defect resolved must have a dedicated test reproducing the initial defect and proving the fix (RED -> GREEN).
+3. **Actual HTTP Contract Tests**: Validate real HTTP requests through `WebApplicationFactory` for all routes, query parameters, optional bodies (`EmptyBodyBehavior.Allow`), status codes, ProblemDetails, and headers.
+4. **Real PostgreSQL Concurrency Tests**: Concurrency tokens, optimistic locking, strong ETag preconditions (`If-Match: "<version>"`), missing preconditions (`428 Precondition Required`), and stale version conflicts (`412 Precondition Failed`) must be tested against real PostgreSQL Testcontainers.
+5. **Privacy-Safe Logging Tests**: Use synthetic PHI sentinels (e.g. MRN, patient names, passwords) to verify that raw identifiers are NEVER reflected in response bodies, application logs, or ExceptionHandlingMiddleware logs.
+6. **Frontend-Generated Clinical Fixtures**: Use actual frontend `serializeState()` / `defaultState()` output in versioned JSON fixture files (`backend/tests/MedCanvas.Tests.Data/Fixtures/generated/`) with automated drift checks (`npm run fixtures:generate`).
+7. **Failure-Path Autosave Tests**: Every clinical sync bridge must be tested for failure paths: prove that a failed save or conflict blocks encounter switching, retains dirty state, avoids silent overwrites, and uses generation tokens to isolate late asynchronous responses.
+8. **Clinical Invariants Require Multi-Layer Tests**: Clinical rules (FDI tooth ranges 11-48 & 51-85, caries surfaces, restoration constraints, dual-state separation, radix-restoration row gating) must be tested at both Domain and Validator/Integration layers.
+9. **Authorization Must Be Tested with Real HTTP Calls**: Do not rely on mocked authorization handlers or unit test assertions alone. Test real HTTP requests through `WebApplicationFactory` with authorized, unauthorized, revoked, expired, and wrong-clinic identities (anti-IDOR).
+10. **Persistence Must Be Tested Against PostgreSQL**: Never use EF Core InMemory provider to validate schema or queries. Test all migrations, concurrency tokens, unique indexes, and JSONB queries against real PostgreSQL via Testcontainers (`postgres:16-alpine`).
+11. **Frontend/Backend Contracts Must Remain Synchronized**: Any route, query parameter, DTO shape, ETag precondition, or payload version change must be reflected in both backend controllers and `src/api/client.ts`.
+12. **CI Must Pass Before Approval**: Never approve a pull request or merge when automated GitHub Actions CI is red, queued, or failing.
+13. **Tests Cannot Be Deleted or Weakened to Hide Bugs**: Removing tests or relaxing assertions to mask underlying bugs or schema mismatches is strictly forbidden.
+14. **Actual Test Results Must Be Reported**: Always report actual test execution numbers directly from the test runner output, not estimated or assumed counts. Future agents must read this skill before touching backend code.
+15. **Atomic Patient/Encounter Switching & Chart Identity (SYNC-P0-02)**: Target encounter switching must use an atomic two-phase protocol (Prepare -> Commit). If target encounter fetch fails (HTTP error, 404, 500, invalid JSON, or encounter mismatch), active encounter identity and chart must remain unchanged. A patient's odontogram must never be uploaded to another encounter.
+16. **Autosave Revision Accounting (SYNC-P1-02)**: The "saved" status indicates that the latest local clinical revision is safely persisted. If local edits arrive while a write is in-flight, the bridge must remain in saving/pending state and trigger the next serialized write, never displaying a false "saved" indicator while newer unsaved changes remain.
+17. **Strict Schema Version Grammar & Limits (SCHEMA-P1-02)**: Validate snapshot versions using strict numeric SemVer grammar (`^(\d+)\.(\d+)(?:\.(\d+))?$`). Supported versions are `<= 2.22` and legacy `>= 1.4`. Reject malformed or future versions (`3.0`, `2.23`, `1.999`, `2.22.invalid`). The maximum payload size is strictly 10 MB measured in UTF-8 bytes. Periodontal probing depths must be 0-15 mm and GM -10 to +20 mm across the 6 valid sites (`MB`, `B`, `DB`, `ML`, `L`, `DL`).
+18. **FHIR Multi-Intervention Preservation & Error Transparency (FHIR-P1-02)**: Planned interventions on each tooth must be evaluated independently so that multiple concurrent procedures (e.g. planned endodontics AND planned crown) each emit distinct ServiceRequests. Silent swallowing of JSON or conversion exceptions is prohibited; errors must fail closed or be explicitly reported.

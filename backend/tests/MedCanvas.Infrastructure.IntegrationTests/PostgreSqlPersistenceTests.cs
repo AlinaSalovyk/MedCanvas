@@ -158,6 +158,88 @@ public class PostgreSqlPersistenceTests : IAsyncLifetime
         latest!.EncounterId.Should().Be(enc2.Id);
         latest.SnapshotJson.Should().Be("{\"exam\":2}");
     }
+
+    [Fact]
+    public async Task SaveOdontogram_TwoConcurrentUpdatesFromSameVersion_EnforcesConcurrencyTokenAndPreservesOriginalData()
+    {
+        // Arrange
+        var clinic = Clinic.Create("Concurrency Test Clinic", $"CC-{Guid.NewGuid():N}", _now);
+        var user = User.Create($"dr.conc.{Guid.NewGuid():N}@example.com", "Dr. Concurrency", "hash", _now);
+        var patient = Patient.Create(clinic.Id, "Jane", "Concurrency", null, "Female", null, null, null, null, _now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, _now, "Exam", _now);
+
+        _context.Clinics.Add(clinic);
+        _context.Users.Add(user);
+        _context.Patients.Add(patient);
+        _context.DentalEncounters.Add(encounter);
+        await _context.SaveChangesAsync();
+
+        var originalSnapshot = "{\"version\":\"2.22\",\"teeth\":{\"11\":{\"caries\":[]}}}";
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", originalSnapshot, _now);
+        _context.OdontogramRecords.Add(record);
+        await _context.SaveChangesAsync();
+
+        // Simulate two concurrent clients both reading version 1 in separate DbContext instances
+        var options = new DbContextOptionsBuilder<MedCanvasDbContext>()
+            .UseNpgsql(_fixture.ConnectionString)
+            .Options;
+
+        await using var contextA = new MedCanvasDbContext(options);
+        await using var contextB = new MedCanvasDbContext(options);
+
+        var recordA = await contextA.OdontogramRecords.FirstAsync(r => r.Id == record.Id);
+        var recordB = await contextB.OdontogramRecords.FirstAsync(r => r.Id == record.Id);
+
+        // Client A updates successfully to version 2
+        var updateASnapshot = "{\"version\":\"2.22\",\"teeth\":{\"11\":{\"caries\":[\"caries-distal\"]}}}";
+        recordA.UpdatePayload(updateASnapshot, expectedVersion: 1, _now.AddSeconds(1));
+        await contextA.SaveChangesAsync();
+        recordA.ConcurrencyVersion.Should().Be(2);
+
+        // Client B tries to save its update prepared against stale version 1
+        var updateBSnapshot = "{\"version\":\"2.22\",\"teeth\":{\"11\":{\"caries\":[\"caries-mesial\"]}}}";
+        recordB.UpdatePayload(updateBSnapshot, expectedVersion: 1, _now.AddSeconds(2));
+        var actStaleUpdate = async () => await contextB.SaveChangesAsync();
+
+        // Act & Assert - EF Core & PostgreSQL reject update because database version is already 2
+        await actStaleUpdate.Should().ThrowAsync<DbUpdateConcurrencyException>();
+
+        // Verify original winner data is preserved in database
+        await using var verifyContext = new MedCanvasDbContext(options);
+        var finalRecord = await verifyContext.OdontogramRecords.AsNoTracking().FirstAsync(r => r.Id == record.Id);
+        finalRecord.ConcurrencyVersion.Should().Be(2);
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(finalRecord.SnapshotJson);
+        jsonDoc.RootElement.GetProperty("version").GetString().Should().Be("2.22");
+        jsonDoc.RootElement.GetProperty("teeth").GetProperty("11").GetProperty("caries")[0].GetString().Should().Be("caries-distal");
+    }
+
+    [Fact]
+    public async Task SaveOdontogram_ConcurrentCreationForSameEncounter_ThrowsDbUpdateExceptionDueToUniqueIndex()
+    {
+        // Arrange
+        var clinic = Clinic.Create("Dup Test Clinic", $"DC-{Guid.NewGuid():N}", _now);
+        var user = User.Create($"dr.dup.{Guid.NewGuid():N}@example.com", "Dr. Dup", "hash", _now);
+        var patient = Patient.Create(clinic.Id, "Bob", "Duplicate", null, "Male", null, null, null, null, _now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, _now, "Exam", _now);
+
+        _context.Clinics.Add(clinic);
+        _context.Users.Add(user);
+        _context.Patients.Add(patient);
+        _context.DentalEncounters.Add(encounter);
+        await _context.SaveChangesAsync();
+
+        var record1 = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", "{\"version\":\"2.22\",\"teeth\":{}}", _now);
+        var record2 = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", "{\"version\":\"2.22\",\"teeth\":{}}", _now);
+
+        _context.OdontogramRecords.Add(record1);
+        await _context.SaveChangesAsync();
+
+        // Act & Assert - Attempting to insert a second record for the same encounter violates unique index
+        _context.OdontogramRecords.Add(record2);
+        var actDuplicate = async () => await _context.SaveChangesAsync();
+
+        await actDuplicate.Should().ThrowAsync<DbUpdateException>();
+    }
 }
 
 [CollectionDefinition(nameof(PostgreSqlTestCollection))]

@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, Services.DateTimeProvider>();
         services.AddSingleton<IPasswordHasher, Services.PasswordHasher>();
         services.AddScoped<IJwtTokenService, Services.JwtTokenService>();
+        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, Security.ActiveClinicMembershipHandler>();
 
         return services;
     }

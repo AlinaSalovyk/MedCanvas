@@ -44,7 +44,7 @@ public sealed class CreatePatientCommandHandler : IRequestHandler<CreatePatientC
 
             if (exists)
             {
-                throw new DomainException($"A patient with Medical Record Number '{request.ExternalMedicalRecordNumber}' already exists in this clinic.");
+                throw new DuplicateMedicalRecordNumberException();
             }
         }
 

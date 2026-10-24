@@ -5,6 +5,7 @@ using MedCanvas.Api.IntegrationTests.Infrastructure;
 using MedCanvas.Application.Common.Interfaces;
 using MedCanvas.Domain.Entities;
 using MedCanvas.Domain.Enums;
+using MedCanvas.Tests.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -26,25 +27,7 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private const string SampleDentalPayload = """
-    {
-        "version": "2.22",
-        "globals": {},
-        "teeth": {
-            "11": {
-                "caries": {
-                    "distal": { "icdas": 3 },
-                    "mesial": { "icdas": 2 }
-                }
-            },
-            "26": {
-                "caries": {
-                    "occlusal": { "icdas": 4 }
-                }
-            }
-        }
-    }
-    """;
+    private static readonly string SampleDentalPayload = ClinicalPayloadFixtures.CariesAndRestorationsPayload;
 
     [Fact]
     public async Task GetFhirBundle_ReturnsValidHl7FhirR4Bundle_WithPatientOrganizationEncounterAndConditions()
@@ -101,9 +84,97 @@ public class FhirExportTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetim
         var encounterEntry = entries.First(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "Encounter");
         encounterEntry.GetProperty("resource").GetProperty("status").GetString().Should().Be("inprogress");
 
-        // Verify Condition entries for caries
+        // Verify Condition entries generated from frontend array-based caries, fillings, and implants
         var conditionEntries = entries.Where(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "Condition").ToList();
-        conditionEntries.Should().HaveCount(3);
+        conditionEntries.Should().NotBeEmpty();
+
+        // 11 has 2 caries surfaces (distal, mesial)
+        conditionEntries.Should().Contain(c => c.GetProperty("resource").GetProperty("code").GetProperty("text").GetString()!.Contains("Caries on Tooth FDI 11 (distal surface, ICDAS 3)"));
+        conditionEntries.Should().Contain(c => c.GetProperty("resource").GetProperty("code").GetProperty("text").GetString()!.Contains("Caries on Tooth FDI 11 (mesial surface, ICDAS 2)"));
+        // 16 is an implant with crown
+        conditionEntries.Should().Contain(c => c.GetProperty("resource").GetProperty("code").GetProperty("text").GetString()!.Contains("Dental implant at Tooth FDI 16"));
+        // 21 has composite filling
+        conditionEntries.Should().Contain(c => c.GetProperty("resource").GetProperty("code").GetProperty("text").GetString()!.Contains("Filling on Tooth FDI 21 (occlusal surface, material: composite)"));
+    }
+
+    [Fact]
+    public async Task GetFhirBundle_WithStatusAndPlanPayload_EmitsServiceRequestsForPlan()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Ivan", "Franko", new DateOnly(1856, 8, 27), "Male", "+380509998877", "ivan@example.com", "MRN-FHIR-2", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Plan review", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", ClinicalPayloadFixtures.StatusAndPlanPayload, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            db.OdontogramRecords.Add(record);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Act
+        var response = await client.GetAsync($"/api/v1/encounters/{encounter.Id}/fhir");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var entries = doc.RootElement.GetProperty("entry").EnumerateArray().ToList();
+
+        var serviceRequests = entries.Where(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "ServiceRequest").ToList();
+        serviceRequests.Should().NotBeEmpty();
+        var planReq = serviceRequests.First();
+        planReq.GetProperty("resource").GetProperty("intent").GetString().Should().Be("plan");
+        planReq.GetProperty("resource").GetProperty("status").GetString().Should().Be("active");
+    }
+
+    [Fact]
+    public async Task GetFhirBundle_WithMalformedSnapshot_GracefullyReturnsBaseBundleWithoutCrashing()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Taras", "Shevchenko", new DateOnly(1814, 3, 9), "Male", null, null, "MRN-FHIR-3", null, now);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, now, "Emergency", now);
+        var record = OdontogramRecord.Create(clinic.Id, patient.Id, encounter.Id, "2.22", "{\"corrupt\": true, \"teeth\": \"not-an-object\"}", now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            db.OdontogramRecords.Add(record);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        // Act
+        var response = await client.GetAsync($"/api/v1/encounters/{encounter.Id}/fhir");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var entries = doc.RootElement.GetProperty("entry").EnumerateArray().ToList();
+        // Should have Organization, Patient, and Encounter, but zero Conditions without throwing
+        entries.Should().HaveCount(3);
     }
 
     [Fact]

@@ -41,28 +41,46 @@ export interface TouchPoint {
   clientY: number;
 }
 
+let contextMenuTimeout: ReturnType<typeof setTimeout> | null = null;
+let contextMenuCloseHandler: ((e: Event) => void) | null = null;
+
 /**
  * Remove any mounted zoom popover overlay from the DOM.
  */
 export function hideZoomPopover(): void {
-  const overlay = document.querySelector(".odon-zoom-overlay");
-  if (overlay) overlay.remove();
+  if (typeof document !== "undefined") {
+    const overlay = document.querySelector(".odon-zoom-overlay");
+    if (overlay) overlay.remove();
+  }
 }
 
 /**
  * Remove any mounted context menu from the DOM.
  */
 export function hideContextMenu(): void {
-  const menu = document.querySelector(".odon-ctx-menu");
-  if (menu) menu.remove();
+  if (contextMenuTimeout !== null) {
+    clearTimeout(contextMenuTimeout);
+    contextMenuTimeout = null;
+  }
+  if (contextMenuCloseHandler !== null && typeof document !== "undefined") {
+    document.removeEventListener("touchstart", contextMenuCloseHandler, true);
+    document.removeEventListener("click", contextMenuCloseHandler, true);
+    contextMenuCloseHandler = null;
+  }
+  if (typeof document !== "undefined") {
+    const menu = document.querySelector(".odon-ctx-menu");
+    if (menu) menu.remove();
+  }
 }
 
 /**
  * Remove any mounted note editor overlay from the DOM.
  */
 export function hideNoteEditor(): void {
-  const backdrop = document.querySelector(".odon-note-backdrop");
-  if (backdrop) backdrop.remove();
+  if (typeof document !== "undefined") {
+    const backdrop = document.querySelector(".odon-note-backdrop");
+    if (backdrop) backdrop.remove();
+  }
 }
 
 /**
@@ -234,13 +252,15 @@ export function showContextMenu(
   const closeHandler = (e: Event) => {
     if (!menu.contains(e.target as Node)) {
       hideContextMenu();
-      document.removeEventListener("touchstart", closeHandler, true);
-      document.removeEventListener("click", closeHandler, true);
     }
   };
-  setTimeout(() => {
-    document.addEventListener("touchstart", closeHandler, true);
-    document.addEventListener("click", closeHandler, true);
+  contextMenuCloseHandler = closeHandler;
+  contextMenuTimeout = setTimeout(() => {
+    contextMenuTimeout = null;
+    if (typeof document !== "undefined") {
+      document.addEventListener("touchstart", closeHandler, true);
+      document.addEventListener("click", closeHandler, true);
+    }
   }, 50);
 }
 
