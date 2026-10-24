@@ -16,6 +16,7 @@ public sealed class LoginCommandValidator : AbstractValidator<LoginCommand>
             .MaximumLength(100).WithMessage("Password cannot exceed 100 characters.");
 
         RuleFor(x => x.ClinicId)
-            .NotEmpty().WithMessage("Clinic identifier is required.");
+            .NotEmpty().WithMessage("Clinic identifier must not be empty when provided.")
+            .When(x => x.ClinicId.HasValue);
     }
 }

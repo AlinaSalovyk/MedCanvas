@@ -1,28 +1,30 @@
 using MedCanvas.Application.Common.Exceptions;
 using MedCanvas.Application.Common.Interfaces;
-using MedCanvas.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedCanvas.Application.Features.Auth;
 
-public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponseDto>
+public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResultDto>
 {
     private readonly IMedCanvasDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public LoginCommandHandler(
         IMedCanvasDbContext dbContext,
         IPasswordHasher passwordHasher,
-        IJwtTokenService jwtTokenService)
+        IJwtTokenService jwtTokenService,
+        IDateTimeProvider dateTimeProvider)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
-    public async Task<LoginResponseDto> Handle(LoginCommand request, CancellationToken cancellationToken)
+    public async Task<LoginResultDto> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
@@ -40,35 +42,42 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             throw new UnauthorizedAccessException("Invalid credentials or account is deactivated.");
         }
 
-        var clinic = await _dbContext.Clinics
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == request.ClinicId, cancellationToken);
+        var memberships = await MembershipLookups.GetActiveForUserAsync(_dbContext, user.Id, cancellationToken);
 
-        if (clinic == null || !clinic.IsActive)
+        if (memberships.Count == 0)
         {
-            throw new NotFoundException(nameof(Clinic), request.ClinicId);
+            throw new UnauthorizedAccessException("User has no active clinic memberships.");
         }
 
-        var membership = await _dbContext.ClinicMemberships
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.UserId == user.Id && m.ClinicId == request.ClinicId && m.IsActive, cancellationToken);
-
-        if (membership == null)
+        MembershipLookups.MembershipWithClinic? selected = null;
+        if (request.ClinicId.HasValue)
         {
-            throw new ForbiddenAccessException("User has no active membership in the specified clinic.");
+            selected = memberships.FirstOrDefault(mc => mc.Clinic.Id == request.ClinicId.Value);
+            if (selected == null)
+            {
+                throw new ForbiddenAccessException("User has no active membership in the specified clinic.");
+            }
+        }
+        else if (memberships.Count == 1)
+        {
+            selected = memberships[0];
+        }
+        else
+        {
+            return LoginResultDto.SelectionRequired(memberships.Select(MembershipLookups.ToSummary).ToList());
         }
 
-        var expiresAtUtc = DateTime.UtcNow.AddMinutes(480);
-        var token = _jwtTokenService.GenerateToken(user, clinic.Id, membership.Role, expiresAtUtc);
+        var expiresAtUtc = _jwtTokenService.ComputeDefaultExpiry(_dateTimeProvider.UtcNow);
+        var token = _jwtTokenService.GenerateToken(user, selected.Clinic.Id, selected.Membership.Role, expiresAtUtc);
 
-        return new LoginResponseDto(
-            Token: token,
-            ExpiresAtUtc: expiresAtUtc,
-            UserId: user.Id,
-            Email: user.Email,
-            FullName: user.FullName,
-            ClinicId: clinic.Id,
-            ClinicName: clinic.Name,
-            Role: membership.Role.ToString());
+        return LoginResultDto.Authenticated(
+            token,
+            expiresAtUtc,
+            user.Id,
+            user.Email,
+            user.FullName,
+            selected.Clinic.Id,
+            selected.Clinic.Name,
+            selected.Membership.Role.ToString());
     }
 }
