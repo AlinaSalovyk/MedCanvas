@@ -253,9 +253,20 @@ public static class FhirBundleBuilder
             }
 
             // 5. Planned Interventions as FHIR ServiceRequests (intent = "plan")
-            // Evaluates each planned clinical intervention independently (avoiding mutually exclusive else-if dropping)
+            // Evaluates each planned clinical intervention independently (avoiding mutually exclusive else-if dropping).
+            //
+            // DIVERGENCE-ONLY SEMANTICS (M00 clinical safety gate): the canonical payload
+            // serializes `plan` as a full clone of the status chart whenever ANY tooth
+            // differs, so teeth whose planned state merely mirrors their unchanged status
+            // state are NOT new procedures. A ServiceRequest is emitted only where the
+            // planned value actually diverges from the current status value — mirroring the
+            // frontend exporter (src/fhir/toFhirPlan.ts): unchanged Status states must never
+            // generate planned procedures.
             if (root.TryGetProperty("plan", out var planEl) && planEl.ValueKind == JsonValueKind.Object)
             {
+                var hasStatusTeeth = root.TryGetProperty("teeth", out var statusTeethEl)
+                    && statusTeethEl.ValueKind == JsonValueKind.Object;
+
                 foreach (var planToothProp in planEl.EnumerateObject())
                 {
                     var toothFdi = planToothProp.Name;
@@ -266,37 +277,48 @@ public static class FhirBundleBuilder
                         continue;
                     }
 
-                    // 5a. Planned Endodontics
-                    if (planData.TryGetProperty("endo", out var pEndo) &&
-                        pEndo.ValueKind == JsonValueKind.String &&
-                        !string.IsNullOrWhiteSpace(pEndo.GetString()) &&
-                        pEndo.GetString() != "none")
+                    JsonElement statusData = default;
+                    var hasStatusTooth = hasStatusTeeth
+                        && statusTeethEl.TryGetProperty(toothFdi, out statusData)
+                        && statusData.ValueKind == JsonValueKind.Object;
+                    if (!hasStatusTooth)
                     {
-                        var endoVal = pEndo.GetString();
+                        statusData = default;
+                    }
+
+                    // 5a. Planned Endodontics — planned endo differs from the current status endo
+                    var planEndo = AxisString(planData, "endo");
+                    if (!string.IsNullOrWhiteSpace(planEndo)
+                        && planEndo != "none"
+                        && planEndo != AxisString(statusData, "endo"))
+                    {
                         entries.Add(CreateServiceRequestEntry(
                             patient.Id, encounter.Id, toothFdi,
                             snomedCode: "234737002",
                             snomedDisplay: "Root canal therapy",
-                            procedureText: $"Planned endodontic treatment on Tooth FDI {toothFdi} ({endoVal})"));
+                            procedureText: $"Planned endodontic treatment on Tooth FDI {toothFdi} ({planEndo})"));
                     }
 
                     // 5b. Planned Restorations (Crown / Inlay / Onlay / Veneer / Bridge)
-                    if (planData.TryGetProperty("restorationType", out var pRestType) &&
-                        pRestType.ValueKind == JsonValueKind.String &&
-                        !string.IsNullOrWhiteSpace(pRestType.GetString()) &&
-                        pRestType.GetString() != "none")
+                    // Planned restoration type differs from the current status restoration type
+                    var planRestType = AxisString(planData, "restorationType");
+                    if (!string.IsNullOrWhiteSpace(planRestType)
+                        && planRestType != "none"
+                        && planRestType != AxisString(statusData, "restorationType"))
                     {
-                        var restType = pRestType.GetString();
                         entries.Add(CreateServiceRequestEntry(
                             patient.Id, encounter.Id, toothFdi,
                             snomedCode: "281691000",
                             snomedDisplay: "Dental procedure",
-                            procedureText: $"Planned {restType} restoration on Tooth FDI {toothFdi}"));
+                            procedureText: $"Planned {planRestType} restoration on Tooth FDI {toothFdi}"));
                     }
                     else if (planData.TryGetProperty("planRestoration", out var planRestEl) &&
                              planRestEl.ValueKind != JsonValueKind.Null &&
-                             planRestEl.ValueKind != JsonValueKind.False)
+                             planRestEl.ValueKind != JsonValueKind.False &&
+                             string.IsNullOrWhiteSpace(AxisString(statusData, "restorationType")))
                     {
+                        // Legacy explicit plan flag: still only a procedure when the status
+                        // does not already carry an active restoration.
                         entries.Add(CreateServiceRequestEntry(
                             patient.Id, encounter.Id, toothFdi,
                             snomedCode: "281691000",
@@ -304,10 +326,9 @@ public static class FhirBundleBuilder
                             procedureText: $"Planned dental restoration on Tooth FDI {toothFdi}"));
                     }
 
-                    // 5c. Planned Fillings
-                    if (planData.TryGetProperty("fillingSurfaces", out var pFillSurfaces) &&
-                        pFillSurfaces.ValueKind == JsonValueKind.Array &&
-                        pFillSurfaces.GetArrayLength() > 0)
+                    // 5c. Planned Fillings — planned surface set differs from the status surface set
+                    var planFillSurfaces = AxisSurfaces(planData, "fillingSurfaces");
+                    if (planFillSurfaces.Count > 0 && !planFillSurfaces.SetEquals(AxisSurfaces(statusData, "fillingSurfaces")))
                     {
                         entries.Add(CreateServiceRequestEntry(
                             patient.Id, encounter.Id, toothFdi,
@@ -316,10 +337,8 @@ public static class FhirBundleBuilder
                             procedureText: $"Planned dental restoration on Tooth FDI {toothFdi}"));
                     }
 
-                    // 5d. Planned Extraction
-                    if (planData.TryGetProperty("extractionPlan", out var pExtract) &&
-                        (pExtract.ValueKind == JsonValueKind.True ||
-                         (pExtract.ValueKind == JsonValueKind.String && bool.TryParse(pExtract.GetString(), out var bExt) && bExt)))
+                    // 5d. Planned Extraction — flag raised in the plan but not already true in status
+                    if (IsAxisTrue(planData, "extractionPlan") && !IsAxisTrue(statusData, "extractionPlan"))
                     {
                         entries.Add(CreateServiceRequestEntry(
                             patient.Id, encounter.Id, toothFdi,
@@ -345,6 +364,49 @@ public static class FhirBundleBuilder
         };
 
         return bundle.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    /// <summary>String value of a tooth axis, or null when the tooth/axis is absent.
+    /// Passing <c>default</c> (no status tooth) safely yields null.</summary>
+    private static string? AxisString(JsonElement tooth, string axis)
+    {
+        if (tooth.ValueKind != JsonValueKind.Object ||
+            !tooth.TryGetProperty(axis, out var el) ||
+            el.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+        return el.GetString();
+    }
+
+    /// <summary>Boolean value of a tooth axis (accepts true or parsable "true").</summary>
+    private static bool IsAxisTrue(JsonElement tooth, string axis)
+    {
+        if (tooth.ValueKind != JsonValueKind.Object || !tooth.TryGetProperty(axis, out var el))
+        {
+            return false;
+        }
+        return el.ValueKind == JsonValueKind.True ||
+               (el.ValueKind == JsonValueKind.String && bool.TryParse(el.GetString(), out var parsed) && parsed);
+    }
+
+    /// <summary>Surface set of a tooth axis (e.g. fillingSurfaces), empty when absent.</summary>
+    private static HashSet<string> AxisSurfaces(JsonElement tooth, string axis)
+    {
+        var surfaces = new HashSet<string>(StringComparer.Ordinal);
+        if (tooth.ValueKind == JsonValueKind.Object &&
+            tooth.TryGetProperty(axis, out var el) &&
+            el.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in el.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    surfaces.Add(item.GetString() ?? string.Empty);
+                }
+            }
+        }
+        return surfaces;
     }
 
     private static JsonObject CreateConditionEntry(
