@@ -285,7 +285,7 @@ describe("OdontogramSyncBridge M00 — edits during encounter switch are preserv
     const targetFetch = new Promise((resolve) => {
       resolveTarget = resolve;
     });
-    vi.spyOn(client, "getOdontogramByEncounter").mockImplementationOnce(() => targetFetch as any);
+    vi.spyOn(client, "getOdontogramByEncounter").mockImplementationOnce(() => targetFetch as Promise<{ odontogram: import("../../api/types").OdontogramResponseDto; etag?: string | null }>);
     const saveSpy = vi.spyOn(client, "saveOdontogram").mockResolvedValue({
       odontogram: dtoFor("enc-A", { version: "2.22", teeth: {} }, 2),
       etag: '"2"',
@@ -319,7 +319,7 @@ describe("OdontogramSyncBridge M00 — edits during encounter switch are preserv
     const targetFetch = new Promise((resolve) => {
       resolveTarget = resolve;
     });
-    vi.spyOn(client, "getOdontogramByEncounter").mockImplementationOnce(() => targetFetch as any);
+    vi.spyOn(client, "getOdontogramByEncounter").mockImplementationOnce(() => targetFetch as Promise<{ odontogram: import("../../api/types").OdontogramResponseDto; etag?: string | null }>);
 
     const bridge = newBridge({ client, encounterId: "enc-A" });
     const switchPromise = bridge.switchEncounter("enc-B");
