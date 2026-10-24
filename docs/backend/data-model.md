@@ -43,7 +43,8 @@ Represents the top-level multi-tenant boundary. All patient and medical data bel
 |---|---|---|---|
 | `Id` | `uuid` | No | Primary Key |
 | `Name` | `varchar(200)` | No | Clinic legal display name |
-| `Identifier` | `varchar(50)` | No | Unique tenant code (e.g. `CLINIC-001`) |
+| `Identifier` | `varchar(50)` | No | Unique tenant code (e.g. `CLINIC-001`); immutable after onboarding |
+| `TimeZoneId` | `varchar(64)` | No | Default: `Europe/Kyiv` (valid IANA id, added by `AddClinicTimeZone` migration) |
 | `IsActive` | `boolean` | No | Default: `true` |
 | `CreatedAtUtc` | `timestamptz` | No | UTC timestamp |
 | `UpdatedAtUtc` | `timestamptz` | No | UTC timestamp |
