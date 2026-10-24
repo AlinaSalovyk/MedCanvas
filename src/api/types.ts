@@ -14,10 +14,69 @@ export interface AuthTokenResponse {
   role: string;
 }
 
+/** Login union result: either an authenticated session or a clinic selection prompt. */
+export interface LoginResult {
+  requiresClinicSelection: boolean;
+  clinics: ClinicMembershipSummary[];
+  token?: string | null;
+  expiresAtUtc?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  fullName?: string | null;
+  clinicId?: string | null;
+  clinicName?: string | null;
+  role?: string | null;
+}
+
+export interface ClinicMembershipSummary {
+  clinicId: string;
+  clinicName: string;
+  clinicIdentifier: string;
+  role: string;
+}
+
+export interface ClinicMemberDto {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: string;
+  membershipActive: boolean;
+  userActive: boolean;
+  memberSinceUtc: string;
+}
+
+export interface ClinicSettingsDto {
+  clinicId: string;
+  name: string;
+  identifier: string;
+  timeZoneId: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
-  clinicId: string;
+  clinicId?: string;
+}
+
+export interface OnboardClinicRequest {
+  clinicName: string;
+  clinicIdentifier: string;
+  adminEmail: string;
+  adminFullName: string;
+  adminPassword: string;
+  timeZoneId?: string;
+}
+
+export interface AddClinicMemberRequest {
+  email: string;
+  fullName: string;
+  password: string;
+  role: string;
+}
+
+export interface UpdateClinicSettingsRequest {
+  name: string;
+  timeZoneId: string;
 }
 
 export interface CurrentUserResponse {
