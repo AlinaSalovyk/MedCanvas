@@ -9,7 +9,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 |---|---|---|
 | Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
 | M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
-| M01 | IN_PROGRESS | Branch `feat/mvp-workspace-identity` from `2b59f50` |
+| M01 | TESTING | Implementation complete (31 commits): auth rework, onboarding, membership mgmt, settings, rate limiting, workspace UI; all gates green locally; see `M01-report.md` |
 | M02–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
@@ -31,7 +31,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | Module | Branch | Base SHA | Final SHA | PR | Merge SHA | Status | Report |
 |---|---|---|---|---|---|---|---|
 | M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | `ac3be8f` | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50` | **MERGED** | `M00-report.md` |
-| M01 | `feat/mvp-workspace-identity` | `2b59f50` | — | — | — | IN_PROGRESS | — |
+| M01 | `feat/mvp-workspace-identity` | `2b59f50` | see PR | — | — | TESTING | `M01-report.md` |
 | M02 | `feat/mvp-patients` | — | — | — | — | NOT_STARTED | — |
 | M03 | `feat/mvp-scheduling` | — | — | — | — | NOT_STARTED | — |
 | M04 | `feat/mvp-clinical-workspace` | — | — | — | — | NOT_STARTED | — |
