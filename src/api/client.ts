@@ -1,5 +1,4 @@
 import type {
-  AuthTokenResponse,
   ClinicMemberDto,
   ClinicMembershipSummary,
   ClinicSettingsDto,
