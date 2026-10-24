@@ -456,7 +456,7 @@ describe("OdontogramSyncBridge", () => {
         patientId: "p-1",
         encounterId: "enc-2",
         payloadVersion: "2.22",
-        snapshotJson: "{}",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
         isFinalized: false,
         concurrencyVersion: 1,
         createdAtUtc: "2026-10-22T12:00:00Z",
@@ -556,7 +556,7 @@ describe("OdontogramSyncBridge", () => {
         patientId: "p-1",
         encounterId: "enc-2",
         payloadVersion: "2.22",
-        snapshotJson: "{}",
+        snapshotJson: JSON.stringify({ version: "2.22", teeth: {} }),
         isFinalized: false,
         concurrencyVersion: 1,
         createdAtUtc: "2026-10-22T12:00:00Z",
@@ -1041,10 +1041,11 @@ describe("OdontogramSyncBridge", () => {
     expect(bridge.getStatus()).toBe("recovery-required");
     expect(bridge.isLockedForRecovery()).toBe(true);
 
-    // 6. Invariant: Recovery succeeds only when verified hydration passes
+    // 6. Invariant: Recovery succeeds only when verified hydration passes.
+    //    Without server metadata the bridge must NOT claim "saved" (no server ack).
     mockImportStatus.mockImplementationOnce(() => {}); // succeeds
     bridge.recoverChart({ version: "2.22", teeth: {} });
-    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.getStatus()).toBe("idle");
     expect(bridge.isLockedForRecovery()).toBe(false);
 
     // 7. Normal writes can resume safely after verified recovery

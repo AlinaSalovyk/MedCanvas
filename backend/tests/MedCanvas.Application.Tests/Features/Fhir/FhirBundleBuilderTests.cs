@@ -64,6 +64,102 @@ public class FhirBundleBuilderTests
     }
 
     [Fact]
+    public void BuildBundle_WhenPlanMerelyMirrorsUnchangedStatusStates_EmitsNoServiceRequests()
+    {
+        // M00 acceptance criterion: the payload serializes `plan` as a full clone of the
+        // status chart whenever ANY tooth differs. Tooth 46 below is IDENTICAL in status
+        // and plan (existing endo + filling + restoration); only tooth 21 genuinely diverges
+        // (planned crown). The mirrored status state of tooth 46 must NOT become a planned
+        // procedure — only the tooth 21 divergence may emit a ServiceRequest.
+        const string mirroredPlanPayload = """
+        {
+            "version": "2.22",
+            "teeth": {
+                "21": { "toothSelection": "tooth-base" },
+                "46": {
+                    "toothSelection": "tooth-base",
+                    "endo": "endo-filling",
+                    "restorationType": "filling",
+                    "fillingSurfaces": ["occlusal", "distal"],
+                    "extractionPlan": true
+                }
+            },
+            "plan": {
+                "21": { "toothSelection": "tooth-base", "restorationType": "crown" },
+                "46": {
+                    "toothSelection": "tooth-base",
+                    "endo": "endo-filling",
+                    "restorationType": "filling",
+                    "fillingSurfaces": ["occlusal", "distal"],
+                    "extractionPlan": true
+                }
+            }
+        }
+        """;
+
+        var record = OdontogramRecord.Create(_clinic.Id, _patient.Id, _encounter.Id, "2.22", mirroredPlanPayload, _now);
+
+        var bundleJson = FhirBundleBuilder.BuildBundle(_clinic, _patient, _encounter, record);
+        using var doc = JsonDocument.Parse(bundleJson);
+        var serviceRequests = doc.RootElement.GetProperty("entry").EnumerateArray()
+            .Where(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "ServiceRequest")
+            .Select(e => e.GetProperty("resource"))
+            .ToList();
+
+        // Exactly one ServiceRequest: the genuine tooth 21 crown divergence.
+        serviceRequests.Should().HaveCount(1);
+        var only = serviceRequests.Single();
+        only.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString().Should().Be("281691000");
+        only.GetProperty("bodySite")[0].GetProperty("coding")[0].GetProperty("code").GetString().Should().Be("21");
+    }
+
+    [Fact]
+    public void BuildBundle_WhenPlanChangesValueOrRaisesFlag_EmitsServiceRequestForTheDivergence()
+    {
+        // Tooth 16: restoration changes filling -> crown (string-axis divergence).
+        // Tooth 36: fillingSurfaces gain a surface (set divergence).
+        // Tooth 41: extractionPlan raised only in plan (boolean raised divergence).
+        // Tooth 11: endo planned while status has none (divergence from absent axis).
+        const string divergingPlanPayload = """
+        {
+            "version": "2.22",
+            "teeth": {
+                "16": { "toothSelection": "tooth-base", "restorationType": "filling" },
+                "36": { "toothSelection": "tooth-base", "fillingSurfaces": ["mesial"] },
+                "41": { "toothSelection": "tooth-base" },
+                "11": { "toothSelection": "tooth-base" }
+            },
+            "plan": {
+                "16": { "toothSelection": "tooth-base", "restorationType": "crown" },
+                "36": { "toothSelection": "tooth-base", "fillingSurfaces": ["mesial", "distal"] },
+                "41": { "toothSelection": "tooth-base", "extractionPlan": true },
+                "11": { "toothSelection": "tooth-base", "endo": "endo-filling" }
+            }
+        }
+        """;
+
+        var record = OdontogramRecord.Create(_clinic.Id, _patient.Id, _encounter.Id, "2.22", divergingPlanPayload, _now);
+
+        var bundleJson = FhirBundleBuilder.BuildBundle(_clinic, _patient, _encounter, record);
+        using var doc = JsonDocument.Parse(bundleJson);
+        var requestsByTooth = doc.RootElement.GetProperty("entry").EnumerateArray()
+            .Where(e => e.GetProperty("resource").GetProperty("resourceType").GetString() == "ServiceRequest")
+            .Select(e => e.GetProperty("resource"))
+            .GroupBy(r => r.GetProperty("bodySite")[0].GetProperty("coding")[0].GetProperty("code").GetString())
+            .ToDictionary(g => g.Key!, g => g.ToList());
+
+        requestsByTooth.Keys.Should().BeEquivalentTo(new[] { "16", "36", "41", "11" });
+        requestsByTooth["16"].Should().ContainSingle(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "281691000");
+        requestsByTooth["36"].Should().ContainSingle(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "429994000");
+        requestsByTooth["41"].Should().ContainSingle(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "234323000");
+        requestsByTooth["11"].Should().ContainSingle(r =>
+            r.GetProperty("code").GetProperty("coding")[0].GetProperty("code").GetString() == "234737002");
+    }
+
+    [Fact]
     public void BuildBundle_WithStatusAndPlan_SegregatesStatusConditionsAndPlanServiceRequests()
     {
         var record = OdontogramRecord.Create(_clinic.Id, _patient.Id, _encounter.Id, "2.22", ClinicalPayloadFixtures.StatusAndPlanPayload, _now);
