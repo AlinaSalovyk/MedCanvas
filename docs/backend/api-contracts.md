@@ -41,8 +41,24 @@ All error responses (4xx, 5xx) strictly follow the RFC 7807 ProblemDetails forma
 ### 2.1 Authentication & Session
 | Method | Route | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/login` | Authenticate clinician; returns JWT and active clinic membership | Anonymous |
+| `POST` | `/api/v1/auth/login` | Authenticate user (`clinicId` optional: single active membership auto-selected; several memberships return `requiresClinicSelection: true` with a clinic list instead of a token). Rate limited (429). | Anonymous |
 | `GET` | `/api/v1/auth/me` | Fetch active user profile and active clinic membership | Bearer |
+| `GET` | `/api/v1/auth/clinics` | List the caller's active clinic memberships (login picker / switcher) | Bearer |
+| `POST` | `/api/v1/auth/switch-clinic` | Exchange the current token for one scoped to another owned clinic (`{ clinicId }`); foreign clinics return 404 | Bearer |
+
+### 2.1b Clinic Tenancy & Staff (M01)
+| Method | Route | Description | Auth Required |
+|---|---|---|---|
+| `POST` | `/api/v1/clinics/onboarding` | Controlled onboarding: creates a brand-new clinic + first ClinicAdmin + membership in one transaction and returns an authenticated session. Existing email or clinic identifier ⇒ 409. Rate limited (429). | Anonymous |
+| `GET` | `/api/v1/clinics/members` | List staff memberships of the active clinic (revoked included, with flags) | ClinicAdmin |
+| `POST` | `/api/v1/clinics/members` | Create a staff account (brand-new user) with a role ⇒ 201 | ClinicAdmin |
+| `PUT` | `/api/v1/clinics/members/{userId}/role` | Change a member's role; self-change ⇒ 409 | ClinicAdmin |
+| `DELETE` | `/api/v1/clinics/members/{userId}` | Revoke (deactivate) a membership; self-revoke ⇒ 409 | ClinicAdmin |
+| `POST` | `/api/v1/clinics/members/{userId}/activate` | Reactivate a revoked membership | ClinicAdmin |
+| `GET` | `/api/v1/clinics/settings` | Read the clinic profile (name, identifier, IANA time zone) | Any active member |
+| `PUT` | `/api/v1/clinics/settings` | Update clinic name and time zone (identifier immutable) | ClinicAdmin |
+
+Audited actions: `CLINIC_ONBOARDED`, `MEMBERSHIP_CREATED`, `MEMBERSHIP_ROLE_CHANGED`, `MEMBERSHIP_REVOKED`, `MEMBERSHIP_REACTIVATED`, `CLINIC_SETTINGS_UPDATED`.
 
 ---
 
