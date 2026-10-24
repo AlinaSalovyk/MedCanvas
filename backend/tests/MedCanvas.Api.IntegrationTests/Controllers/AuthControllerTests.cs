@@ -57,9 +57,10 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+        var result = await response.Content.ReadFromJsonAsync<LoginResultDto>();
         result.Should().NotBeNull();
-        result!.Token.Should().NotBeNullOrWhiteSpace();
+        result!.RequiresClinicSelection.Should().BeFalse();
+        result.Token.Should().NotBeNullOrWhiteSpace();
         result.Email.Should().Be("dr.smith@smiledental.com");
         result.FullName.Should().Be("Dr. John Smith");
         result.ClinicId.Should().Be(clinic.Id);
@@ -301,6 +302,201 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Login_WithoutClinicIdAndSingleMembership_AutoSelectsTheOnlyClinic()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Solo Clinic", "SOLO-01", now);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+        var user = User.Create("solo@example.com", "Solo Dentist", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Clinics.Add(clinic);
+        db.Users.Add(user);
+        db.ClinicMemberships.Add(ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.ClinicAdmin, now));
+        await db.SaveChangesAsync();
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("solo@example.com", "StrongP@ssw0rd123!"));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<LoginResultDto>();
+        result!.RequiresClinicSelection.Should().BeFalse();
+        result.ClinicId.Should().Be(clinic.Id);
+        result.Token.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Login_WithoutClinicIdAndMultipleMemberships_RequiresClinicSelectionWithoutToken()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "MULTI-A", now);
+        var clinicB = Clinic.Create("Clinic B", "MULTI-B", now);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+        var user = User.Create("multi@example.com", "Multi Clinic Dentist", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Clinics.AddRange(clinicA, clinicB);
+        db.Users.Add(user);
+        db.ClinicMemberships.AddRange(
+            ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Clinician, now),
+            ClinicMembership.Create(clinicB.Id, user.Id, MembershipRole.ClinicAdmin, now));
+        await db.SaveChangesAsync();
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("multi@example.com", "StrongP@ssw0rd123!"));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<LoginResultDto>();
+        result!.RequiresClinicSelection.Should().BeTrue();
+        result.Token.Should().BeNull();
+        result.Clinics.Should().HaveCount(2);
+        result.Clinics!.Select(c => c.ClinicId).Should().Contain(new[] { clinicA.Id, clinicB.Id });
+    }
+
+    [Fact]
+    public async Task Login_WithoutMembershipAnywhere_Returns401Unauthorized()
+    {
+        var now = DateTime.UtcNow;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var user = User.Create("orphan@example.com", "Orphan", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand("orphan@example.com", "StrongP@ssw0rd123!"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetMyClinics_ReturnsOnlyActiveMembershipsOfCurrentUser()
+    {
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "MYCL-A", now);
+        var clinicB = Clinic.Create("Clinic B", "MYCL-B", now);
+        var clinicC = Clinic.Create("Clinic C", "MYCL-C", now); // membership deactivated
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var user = User.Create("member@example.com", "Member", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        var deactivated = ClinicMembership.Create(clinicC.Id, user.Id, MembershipRole.Clinician, now);
+        deactivated.Deactivate(now);
+
+        db.Clinics.AddRange(clinicA, clinicB, clinicC);
+        db.Users.Add(user);
+        db.ClinicMemberships.AddRange(
+            ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Clinician, now),
+            ClinicMembership.Create(clinicB.Id, user.Id, MembershipRole.Assistant, now),
+            deactivated);
+        await db.SaveChangesAsync();
+
+        var authClient = _factory.CreateAuthenticatedClient(user, clinicA.Id, MembershipRole.Clinician);
+
+        var response = await authClient.GetAsync("/api/v1/auth/clinics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var clinics = await response.Content.ReadFromJsonAsync<List<ClinicMembershipSummaryDto>>();
+        clinics!.Select(c => c.ClinicId).Should().BeEquivalentTo(new[] { clinicA.Id, clinicB.Id });
+        clinics.Select(c => c.Role).Should().BeEquivalentTo(new[] { "Clinician", "Assistant" });
+    }
+
+    [Fact]
+    public async Task SwitchClinic_ToOwnedMembership_ReturnsNewTokenForTargetClinic()
+    {
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "SW-A", now);
+        var clinicB = Clinic.Create("Clinic B", "SW-B", now);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var user = User.Create("switcher@example.com", "Switcher", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Clinics.AddRange(clinicA, clinicB);
+        db.Users.Add(user);
+        db.ClinicMemberships.AddRange(
+            ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Clinician, now),
+            ClinicMembership.Create(clinicB.Id, user.Id, MembershipRole.ClinicAdmin, now));
+        await db.SaveChangesAsync();
+
+        var authClient = _factory.CreateAuthenticatedClient(user, clinicA.Id, MembershipRole.Clinician);
+
+        var response = await authClient.PostAsJsonAsync("/api/v1/auth/switch-clinic", new SwitchClinicCommand(clinicB.Id));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<LoginResultDto>();
+        result!.RequiresClinicSelection.Should().BeFalse();
+        result.ClinicId.Should().Be(clinicB.Id);
+        result.Role.Should().Be("ClinicAdmin");
+        result.Token.Should().NotBeNullOrWhiteSpace();
+
+        // The new token must actually carry the target clinic claim
+        var newClient = _factory.CreateClient();
+        newClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", result.Token);
+        var me = await newClient.GetAsync("/api/v1/auth/me");
+        me.StatusCode.Should().Be(HttpStatusCode.OK);
+        var meDto = await me.Content.ReadFromJsonAsync<CurrentUserDto>();
+        meDto!.ClinicId.Should().Be(clinicB.Id);
+        meDto.Role.Should().Be("ClinicAdmin");
+    }
+
+    [Fact]
+    public async Task SwitchClinic_ToForeignClinic_Returns404WithoutRevealingExistence()
+    {
+        var now = DateTime.UtcNow;
+        var clinicA = Clinic.Create("Clinic A", "SWF-A", now);
+        var foreignClinic = Clinic.Create("Foreign Clinic", "SWF-B", now);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var user = User.Create("isolated@example.com", "Isolated", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        var foreignAdmin = User.Create("foreign@example.com", "Foreign Admin", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Clinics.AddRange(clinicA, foreignClinic);
+        db.Users.AddRange(user, foreignAdmin);
+        db.ClinicMemberships.AddRange(
+            ClinicMembership.Create(clinicA.Id, user.Id, MembershipRole.Clinician, now),
+            ClinicMembership.Create(foreignClinic.Id, foreignAdmin.Id, MembershipRole.ClinicAdmin, now));
+        await db.SaveChangesAsync();
+
+        var authClient = _factory.CreateAuthenticatedClient(user, clinicA.Id, MembershipRole.Clinician);
+
+        var response = await authClient.PostAsJsonAsync("/api/v1/auth/switch-clinic", new SwitchClinicCommand(foreignClinic.Id));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task SwitchClinic_WithEmptyClinicId_Returns400BadRequest()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Clinic", "SWE-1", now);
+        var user = User.Create("validator@example.com", "Validator", hasher.HashPassword("StrongP@ssw0rd123!"), now);
+        db.Clinics.Add(clinic);
+        db.Users.Add(user);
+        db.ClinicMemberships.Add(ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now));
+        await db.SaveChangesAsync();
+
+        var authClient = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var response = await authClient.PostAsJsonAsync("/api/v1/auth/switch-clinic", new { clinicId = Guid.Empty });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
