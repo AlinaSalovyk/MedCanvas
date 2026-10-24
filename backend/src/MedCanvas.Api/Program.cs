@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using MedCanvas.Api.Middleware;
 using MedCanvas.Api.Services;
 using MedCanvas.Application;
@@ -110,6 +111,17 @@ builder.Services.AddAuthorization(options =>
             MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,
             MedCanvas.Domain.Enums.MembershipRole.Clinician,
             MedCanvas.Domain.Enums.MembershipRole.Assistant)));
+
+    options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanReadClinicProfile, policy =>
+        policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
+            MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,
+            MedCanvas.Domain.Enums.MembershipRole.Clinician,
+            MedCanvas.Domain.Enums.MembershipRole.Assistant,
+            MedCanvas.Domain.Enums.MembershipRole.Viewer)));
+
+    options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanManageClinic, policy =>
+        policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
+            MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin)));
 });
 
 // CORS policy
@@ -128,10 +140,42 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Rate limiting: credential-stuffing protection on unauthenticated auth surfaces.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var response = context.HttpContext.Response;
+        response.ContentType = "application/problem+json";
+
+        await response.WriteAsync(
+            """{"type":"https://medcanvas.health/errors/rate-limited","title":"Too many requests","status":429,"detail":"Too many requests. Please try again later."}""",
+            cancellationToken);
+    };
+
+    options.AddPolicy("auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:Auth:PermitLimit", 10),
+                Window = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimiting:Auth:WindowSeconds", 60)),
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
 
 // Centralized ProblemDetails exception handling
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+{
+    app.UseHsts();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -142,6 +186,7 @@ app.UseHttpsRedirection();
 app.UseCors("MedCanvasCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 
