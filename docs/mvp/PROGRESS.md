@@ -8,7 +8,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | Phase | State | Notes |
 |---|---|---|
 | Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
-| M00 | IN_PROGRESS | Branch `fix/mvp-clinical-safety-gate` |
+| M00 | TESTING | Branch `fix/mvp-clinical-safety-gate`; implementation + tests committed; full gates running; see `M00-report.md` |
 | M01–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
@@ -29,7 +29,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 | Module | Branch | Base SHA | Final SHA | PR | Merge SHA | Status | Report |
 |---|---|---|---|---|---|---|---|
-| M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | — | — | — | IN_PROGRESS | — |
+| M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | TBD | — | — | TESTING | `M00-report.md` |
 | M01 | `feat/mvp-workspace-identity` | — | — | — | — | NOT_STARTED | — |
 | M02 | `feat/mvp-patients` | — | — | — | — | NOT_STARTED | — |
 | M03 | `feat/mvp-scheduling` | — | — | — | — | NOT_STARTED | — |
@@ -50,7 +50,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-Phase Zero complete; M00 branch created from `main` @ `f970f28`; baseline recorded above.
+M00 implementation complete on `fix/mvp-clinical-safety-gate`: sync-bridge strict recovery validation + switch edit protection + truthful ETag/status semantics + unload guard; backend FHIR plan divergence-only semantics. Verified: API tests 45/45, backend suite 281/281, `dotnet format` clean. Full frontend gate chain running; PR follows after green.
 
 ## Known blockers
 
