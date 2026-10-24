@@ -12,7 +12,7 @@ public sealed class UpdateClinicSettingsCommandValidator : AbstractValidator<Upd
 
         RuleFor(x => x.TimeZoneId)
             .NotEmpty().WithMessage("Clinic time zone is required.")
-            .Must(tz => TimeZoneInfo.TryFindSystemTimeZoneById(tz, out _))
+            .Must(tz => !string.IsNullOrEmpty(tz) && TimeZoneInfo.TryFindSystemTimeZoneById(tz, out _))
             .WithMessage("Clinic time zone must be a known IANA time zone identifier.");
     }
 }

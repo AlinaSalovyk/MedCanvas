@@ -30,12 +30,12 @@ public sealed class OnboardClinicCommandValidator : AbstractValidator<OnboardCli
         RuleFor(x => x.AdminPassword)
             .NotEmpty().WithMessage("Administrator password is required.")
             .Length(8, 100).WithMessage("Administrator password must be between 8 and 100 characters.")
-            .Must(p => p.Any(char.IsLetter) && p.Any(char.IsDigit))
+            .Must(p => p != null && p.Any(char.IsLetter) && p.Any(char.IsDigit))
             .WithMessage("Administrator password must contain at least one letter and one digit.");
 
         RuleFor(x => x.TimeZoneId)
             .NotEmpty().WithMessage("Clinic time zone is required.")
-            .Must(tz => TimeZoneInfo.TryFindSystemTimeZoneById(tz, out _))
+            .Must(tz => !string.IsNullOrEmpty(tz) && TimeZoneInfo.TryFindSystemTimeZoneById(tz, out _))
             .WithMessage("Clinic time zone must be a known IANA time zone identifier.");
     }
 }

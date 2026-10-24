@@ -19,7 +19,7 @@ public sealed class AddClinicMemberCommandValidator : AbstractValidator<AddClini
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("Staff password is required.")
             .Length(8, 100).WithMessage("Staff password must be between 8 and 100 characters.")
-            .Must(p => p.Any(char.IsLetter) && p.Any(char.IsDigit))
+            .Must(p => p != null && p.Any(char.IsLetter) && p.Any(char.IsDigit))
             .WithMessage("Staff password must contain at least one letter and one digit.");
 
         RuleFor(x => x.Role)
