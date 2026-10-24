@@ -199,6 +199,6 @@ The test suite is structured into clear functional domains under `src/__tests__/
 
 ## Scope Control
 - Do not add dependencies on external dental systems or APIs
-- Do not add multi-page routing — this is a focused single-page dental application
-- Keep the bundle size minimal — no heavy libraries
+- The engine page (`index.html` + `src/main.tsx` + `src/App.tsx`) remains a focused single-page dental application: no routing, no backend coupling — its DOM and public API are frozen by parity goldens. Multi-page routing lives ONLY in the SaaS workspace entry (`app.html` + `src/workspace/`), mandated by the MVP technical specification (`docs/mvp/MedCanvas-MVP-TZ-v1.0.md` §4.1).
+- Keep the engine bundle minimal — no heavy libraries; workspace dependencies (router, query cache) load only in the `/app.html` entry
 - SVG assets should be optimized (no unnecessary metadata)
