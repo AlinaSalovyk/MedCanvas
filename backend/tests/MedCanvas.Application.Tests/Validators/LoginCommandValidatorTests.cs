@@ -66,6 +66,6 @@ public class LoginCommandValidatorTests
         var result = _validator.TestValidate(command);
 
         result.ShouldHaveValidationErrorFor(x => x.ClinicId)
-            .WithErrorMessage("Clinic identifier is required.");
+            .WithErrorMessage("Clinic identifier must not be empty when provided.");
     }
 }
