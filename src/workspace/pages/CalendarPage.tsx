@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppointmentDto, AppointmentStatus, PatientDto } from "../../api/types";
@@ -60,6 +60,7 @@ export function CalendarPage(): ReactNode {
   const { client, session, t } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const canManage = session?.role === "ClinicAdmin" || session?.role === "Clinician" || session?.role === "Assistant";
 
@@ -290,14 +291,20 @@ export function CalendarPage(): ReactNode {
         </div>
       )}
 
-      {bookingOpen && (
+      {bookingOpen || (canManage && searchParams.get("book")) ? (
         <BookingDialog
-          onClose={() => setBookingOpen(false)}
+          presetPatientId={searchParams.get("book") ?? undefined}
+          onClose={() => {
+            setBookingOpen(false);
+            if (searchParams.get("book")) {
+              navigate("/calendar", { replace: true });
+            }
+          }}
           clinicians={(membersQuery.data ?? []).filter((m) => m.membershipActive && (m.role === "Clinician" || m.role === "ClinicAdmin"))}
           chairs={(chairsQuery.data ?? []).filter((c) => c.isActive)}
           defaultDay={selectedDay}
         />
-      )}
+      ) : null}
     </section>
   );
 }
@@ -307,11 +314,13 @@ function BookingDialog({
   clinicians,
   chairs,
   defaultDay,
+  presetPatientId,
 }: {
   onClose: () => void;
   clinicians: Array<{ userId: string; fullName: string; role: string }>;
   chairs: Array<{ id: string; name: string }>;
   defaultDay: Date;
+  presetPatientId?: string;
 }): ReactNode {
   const { client, t } = useAuth();
   const queryClient = useQueryClient();
@@ -326,12 +335,35 @@ function BookingDialog({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const applyPatients = (items: PatientDto[]): void => {
+    setPatients(items);
+    if (presetPatientId) {
+      const match = items.find((p) => p.id === presetPatientId);
+      if (match) {
+        setPatientId(match.id);
+      }
+    }
+  };
+
   const searchPatients = (): void => {
     void client
       .getPatients({ searchTerm: patientSearch.trim() || undefined, pageSize: 8 })
-      .then((r) => setPatients(r.items))
+      .then((r) => applyPatients(r.items))
       .catch(() => setPatients([]));
   };
+
+  // FR-701/FR-207: arriving with a preset patient (follow-up booking) fetches the
+  // patient list straight away so the booking select can preselect them.
+  useEffect(() => {
+    if (presetPatientId) {
+      void client
+        .getPatients({ searchTerm: undefined, pageSize: 8 })
+        .then((r) => applyPatients(r.items))
+        .catch(() => setPatients([]));
+    }
+    // applyPatients is stable per preset; the fetch must run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetPatientId]);
 
   const book = useMutation({
     mutationFn: () => {

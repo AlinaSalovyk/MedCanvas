@@ -620,3 +620,32 @@
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
+
+/* --- dashboard (M08) --- */
+
+.ws-dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: #ffffff;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ws-dash-card:hover {
+  border-color: #2c6fb5;
+}
+
+.ws-dash-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: #10314f;
+}
+
+.ws-dash-label {
+  font-size: 0.85rem;
+  color: #5a6779;
+}

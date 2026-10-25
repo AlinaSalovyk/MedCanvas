@@ -63,9 +63,14 @@ export function PatientDetailPage(): ReactNode {
 
       <div className="ws-page-header">
         {patient.isActive && (
-          <Link to={`/patients/${patient.id}/plans`} className="ws-button">
-            {t("plans.open")}
-          </Link>
+          <>
+            <Link to={`/patients/${patient.id}/plans`} className="ws-button">
+              {t("plans.open")}
+            </Link>
+            <Link to={`/calendar?book=${patient.id}`} className="ws-button ws-button-primary">
+              {t("patients.book")}
+            </Link>
+          </>
         )}
       </div>
 

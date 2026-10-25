@@ -428,3 +428,16 @@ export interface InvoiceDto {
   createdAtUtc: string;
   updatedAtUtc?: string | null;
 }
+
+// --- Dashboard (M08): all figures come from real tenant data; finance is DEMO ---
+
+export interface ClinicDashboardDto {
+  todaysAppointments: number;
+  waitingPatients: number;
+  inProgressEncounters: number;
+  completedToday: number;
+  upcomingAppointments7Days: number;
+  invoicesIssuedToday: number;
+  simulatedPaymentsToday: number;
+  financeIsDemo: boolean;
+}
