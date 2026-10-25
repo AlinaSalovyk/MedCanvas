@@ -10,8 +10,9 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
 | M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
 | M01 | TESTING | Implementation complete (31 commits): auth rework, onboarding, membership mgmt, settings, rate limiting, workspace UI; all gates green locally; see `M01-report.md` |
-| M02 | TESTING | Backend (390/390) + frontend gates green locally; PR follows; see `M02-report.md` |
-| M03–M09 | NOT_STARTED | — |
+| M02 | **MERGED** | PR #5 squash-merged as `a953ac9` after CI green on HEAD `5450de5` (`CI` 8m0s ✓, `Backend CI` 1m14s ✓) + self-review. Report: `M02-report.md` |
+| M03 | IN_PROGRESS | Branch `feat/mvp-scheduling` from `a953ac9` |
+| M04–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
 
@@ -33,8 +34,8 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 |---|---|---|---|---|---|---|---|
 | M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | `ac3be8f` | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50` | **MERGED** | `M00-report.md` |
 | M01 | `feat/mvp-workspace-identity` | `2b59f50` | `981db68` | [#4](https://github.com/AlinaSalovyk/MedCanvas/pull/4) | `c07182a` | **MERGED** | `M01-report.md` |
-| M02 | `feat/mvp-patients` | `c07182a` | see PR | — | — | TESTING | `M02-report.md` |
-| M03 | `feat/mvp-scheduling` | — | — | — | — | NOT_STARTED | — |
+| M02 | `feat/mvp-patients` | `c07182a` | `5450de5` | [#5](https://github.com/AlinaSalovyk/MedCanvas/pull/5) | `a953ac9` | **MERGED** | `M02-report.md` |
+| M03 | `feat/mvp-scheduling` | `a953ac9` | — | — | — | IN_PROGRESS | — |
 | M04 | `feat/mvp-clinical-workspace` | — | — | — | — | NOT_STARTED | — |
 | M05 | `feat/mvp-treatment-planning` | — | — | — | — | NOT_STARTED | — |
 | M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
@@ -52,7 +53,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M02 implementation complete on `feat/mvp-patients`: backend 390/390 (+10), Vitest 2669/2-skip (+6), Playwright 16/16 (+1), tsc/lint/build/dotnet format green. Pushing for PR.
+M02 merged to `main` (`a953ac9`) after both CI workflows green on PR HEAD `5450de5`; local `main` synchronized. M03 branch `feat/mvp-scheduling` created from `a953ac9`.
 
 ## Known blockers
 
