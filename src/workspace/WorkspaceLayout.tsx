@@ -129,6 +129,12 @@ export function WorkspaceLayout(): ReactNode {
       <div className="ws-body">
         <nav className="ws-nav" aria-label={t("app.subtitle")}>
           <NavLink
+            to="calendar"
+            className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+          >
+            {t("nav.calendar")}
+          </NavLink>
+          <NavLink
             to="patients"
             className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
           >
@@ -137,6 +143,22 @@ export function WorkspaceLayout(): ReactNode {
           <NavLink to="staff" className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}>
             {t("nav.staff")}
           </NavLink>
+          {session.role === "ClinicAdmin" && (
+            <NavLink
+              to="chairs"
+              className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+            >
+              {t("nav.chairs")}
+            </NavLink>
+          )}
+          {session.role === "ClinicAdmin" && (
+            <NavLink
+              to="availability"
+              className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+            >
+              {t("nav.availability")}
+            </NavLink>
+          )}
           {session.role === "ClinicAdmin" && (
             <NavLink
               to="settings"
