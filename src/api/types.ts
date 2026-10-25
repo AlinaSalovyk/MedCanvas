@@ -216,3 +216,77 @@ export interface ProblemDetails {
   instance?: string;
   errors?: Record<string, string[]>;
 }
+
+// --- Scheduling (M03) ---
+
+export type AppointmentStatus = "Scheduled" | "Confirmed" | "Arrived" | "InProgress" | "Completed" | "Cancelled" | "NoShow";
+
+export interface AppointmentDto {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  patientFullName: string;
+  clinicianUserId: string;
+  clinicianFullName: string;
+  chairId: string;
+  chairName: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  status: AppointmentStatus;
+  reasonForVisit: string;
+  internalNote?: string | null;
+  cancellationReason?: string | null;
+  concurrencyVersion: number;
+  createdAtUtc: string;
+  updatedAtUtc?: string | null;
+}
+
+export interface ChairDto {
+  id: string;
+  clinicId: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface AvailabilityBreakDto {
+  startTime: string;
+  endTime: string;
+}
+
+export interface AvailabilityWindowDto {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  breaks: AvailabilityBreakDto[];
+}
+
+export interface AvailabilityExceptionDto {
+  id: string;
+  date: string;
+  isWorkingDay: boolean;
+}
+
+export interface AvailabilityTemplateDto {
+  clinicianUserId: string;
+  clinicianFullName: string;
+  windows: AvailabilityWindowDto[];
+  exceptions: AvailabilityExceptionDto[];
+}
+
+export interface CreateAppointmentRequest {
+  patientId: string;
+  clinicianUserId: string;
+  chairId: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  reasonForVisit: string;
+  internalNote?: string | null;
+}
+
+export interface CalendarWindowOptions {
+  fromUtc: string;
+  toUtc: string;
+  clinicianId?: string;
+  chairId?: string;
+  status?: AppointmentStatus;
+}
