@@ -129,6 +129,13 @@ export function WorkspaceLayout(): ReactNode {
       <div className="ws-body">
         <nav className="ws-nav" aria-label={t("app.subtitle")}>
           <NavLink
+            to=""
+            end
+            className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+          >
+            {t("nav.dashboard")}
+          </NavLink>
+          <NavLink
             to="calendar"
             className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
           >

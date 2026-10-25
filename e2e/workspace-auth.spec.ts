@@ -156,8 +156,10 @@ test("workspace: login, staff table, logout, and protected-route redirect", asyn
   await page.getByLabel(/Пароль/).fill("StrongP@ssw0rd123!");
   await page.getByRole("button", { name: /Увійти/ }).click();
 
-  // Workspace shell with the active clinic and staff table
+  // Workspace shell lands on the dashboard (M08 index), then the staff page
   await expect(page.getByTestId("active-clinic")).toHaveText("E2E Clinic");
+  await expect(page.getByRole("heading", { name: /Панель клініки/ })).toBeVisible();
+  await page.getByRole("link", { name: /Персонал/ }).click();
   await expect(page.getByRole("heading", { name: /Персонал клініки/ })).toBeVisible();
   await expect(page.getByText("admin@clinic.example")).toBeVisible();
 

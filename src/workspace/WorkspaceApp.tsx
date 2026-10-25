@@ -10,6 +10,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { TreatmentPlansPage } from "./pages/TreatmentPlansPage";
 import { EncounterPage } from "./pages/EncounterPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { ChairsPage } from "./pages/ChairsPage";
 import { AvailabilityPage } from "./pages/AvailabilityPage";
 import { PatientsPage } from "./pages/PatientsPage";
@@ -50,7 +51,7 @@ export function WorkspaceApp(): ReactNode {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="staff" replace />} />
+        <Route index element={<DashboardPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route
           path="catalog"

@@ -56,7 +56,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M07 complete on `feat/mvp-demo-billing`: demo invoices + simulated payments (server totals, overpay guard, idempotency, DEMO labeling). Backend 476/476; frontend gates green (measured-anatomy e2e retried clean after one CI-load flake). Pushing for PR.
+M08 complete on `feat/mvp-follow-up-dashboard`: real-data role-scoped dashboard (workspace index) + follow-up booking prefill. Backend 477/477; Playwright 17/17; workspace 24/24. Pushing for PR.
 
 ## Known blockers
 

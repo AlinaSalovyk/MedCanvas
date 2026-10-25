@@ -1,4 +1,5 @@
 import type {
+  ClinicDashboardDto,
   InvoiceDto,
   PerformedProcedureDto,
   CatalogItemDto,
@@ -556,6 +557,12 @@ export class MedCanvasApiClient {
       method: "POST",
       body: JSON.stringify({ reason }),
     });
+    return res.data;
+  }
+
+
+  public async getDashboard(): Promise<ClinicDashboardDto> {
+    const res = await this.request<ClinicDashboardDto>("/dashboard");
     return res.data;
   }
 

@@ -72,6 +72,8 @@ async function loginThroughUi(role = "ClinicAdmin"): Promise<void> {
   loginMock.mockResolvedValueOnce(authedLogin({ role }));
   fireEvent.submit(screen.getByRole("button", { name: /Увійти|Sign in/ }).closest("form")!);
   await waitFor(() => expect(screen.getByTestId("active-clinic")).toBeTruthy());
+  fireEvent.click(screen.getByRole("link", { name: /Персонал|Staff/ }));
+  await waitFor(() => expect(screen.getByRole("heading", { name: /Персонал клініки|Clinic staff/ })).toBeTruthy());
 }
 
 describe("Workspace M01", () => {
@@ -149,8 +151,25 @@ describe("Workspace M01", () => {
 
   it("denies the staff page to non-admin roles", async () => {
     vi.mocked(MedCanvasApiClient.prototype.getMyClinics).mockResolvedValue([]);
-    await loginThroughUi("Clinician");
+    renderWorkspace();
+    fireEvent.change(screen.getByLabelText(/Електронна пошта|Email/), { target: { value: "doc@clinic.example" } });
+    fireEvent.change(screen.getByLabelText(/Пароль|Password/), { target: { value: "StrongP@ssw0rd123!" } });
+    vi.mocked(MedCanvasApiClient.prototype.login).mockResolvedValueOnce({
+      requiresClinicSelection: false,
+      clinics: [],
+      token: "jwt",
+      expiresAtUtc: "2099-01-01T00:00:00Z",
+      userId: "u-2",
+      email: "doc@clinic.example",
+      fullName: "Лікар",
+      clinicId: "c-1",
+      clinicName: "Clinic One",
+      role: "Clinician",
+    } as never);
+    fireEvent.submit(screen.getByRole("button", { name: /Увійти|Sign in/ }).closest("form")!);
+    await waitFor(() => expect(screen.getByTestId("active-clinic")).toBeTruthy());
 
+    fireEvent.click(screen.getByRole("link", { name: /Персонал|Staff/ }));
     await waitFor(() => expect(screen.getByText("Доступ обмежено")).toBeTruthy());
     expect(vi.mocked(MedCanvasApiClient.prototype.getClinicMembers)).not.toHaveBeenCalled();
   });

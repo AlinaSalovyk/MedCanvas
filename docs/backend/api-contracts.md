@@ -161,6 +161,16 @@ Audited: INVOICE_ISSUED, SIMULATED_PAYMENT_RECORDED, INVOICE_VOIDED.
 
 ---
 
+### 2.2f Dashboard (M08)
+Minimal operational dashboard over real tenant data; role-scoped server-side.
+Finance figures are DEMO simulated sums (INV-008).
+
+| Method | Route | Description | Auth |
+|---|---|---|---|
+| GET | /api/v1/dashboard | Today's appointments, waiting, in-progress encounters, completed today, next-7-days, invoices today, simulated paid today (financeIsDemo=true) | Any member (Clinician scoped to own rows) |
+
+---
+
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|
