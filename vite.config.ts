@@ -40,4 +40,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    // Multi-page app: the standalone odontogram (index.html) stays byte-stable for
+    // parity goldens and Playwright; the SaaS workspace is a second entry.
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        app: path.resolve(__dirname, 'app.html'),
+      },
+    },
+  },
 })

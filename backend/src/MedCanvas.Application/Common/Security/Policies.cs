@@ -13,4 +13,6 @@ public static class Policies
     public const string CanMutateOdontogram = "CanMutateOdontogram";
     public const string CanFinalizeOdontogram = "CanFinalizeOdontogram";
     public const string CanExportFhir = "CanExportFhir";
+    public const string CanReadClinicProfile = "CanReadClinicProfile";
+    public const string CanManageClinic = "CanManageClinic";
 }

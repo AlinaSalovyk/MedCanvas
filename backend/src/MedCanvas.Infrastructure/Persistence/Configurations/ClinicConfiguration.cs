@@ -20,6 +20,11 @@ public sealed class ClinicConfiguration : IEntityTypeConfiguration<Clinic>
             .IsRequired()
             .HasMaxLength(50);
 
+        builder.Property(c => c.TimeZoneId)
+            .IsRequired()
+            .HasMaxLength(64)
+            .HasDefaultValue("Europe/Kyiv");
+
         builder.Property(c => c.IsActive)
             .IsRequired();
 

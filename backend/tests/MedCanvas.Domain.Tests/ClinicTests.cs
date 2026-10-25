@@ -87,4 +87,59 @@ public class ClinicTests
 
         clinic.Id.Should().Be(id);
     }
+
+    [Fact]
+    public void Create_WithoutExplicitTimeZone_DefaultsToEuropeKyiv()
+    {
+        var clinic = Clinic.Create("Clinic", "C-01", _now);
+
+        clinic.TimeZoneId.Should().Be("Europe/Kyiv");
+    }
+
+    [Theory]
+    [InlineData("Europe/Kyiv")]
+    [InlineData("Europe/London")]
+    [InlineData("America/New_York")]
+    [InlineData("UTC")]
+    public void Create_WithKnownTimeZone_SetsTimeZoneId(string timeZoneId)
+    {
+        var clinic = Clinic.Create("Clinic", "C-01", _now, timeZoneId);
+
+        clinic.TimeZoneId.Should().Be(timeZoneId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Mars/Olympus")]
+    [InlineData("not/a/timezone!")]
+    public void Create_WithUnknownTimeZone_ThrowsArgumentException(string? invalidTimeZone)
+    {
+        var act = () => Clinic.Create("Clinic", "C-01", _now, invalidTimeZone!);
+        act.Should().Throw<ArgumentException>().WithParameterName("timeZoneId");
+    }
+
+    [Fact]
+    public void UpdateProfile_UpdatesNameAndTimeZoneButKeepsIdentifierImmutable()
+    {
+        var clinic = Clinic.Create("Old Name", "OLD-01", _now, "Europe/Kyiv");
+        var updateTime = _now.AddHours(3);
+
+        clinic.UpdateProfile("New Name", "Europe/Berlin", updateTime);
+
+        clinic.Name.Should().Be("New Name");
+        clinic.TimeZoneId.Should().Be("Europe/Berlin");
+        clinic.Identifier.Should().Be("OLD-01");
+        clinic.UpdatedAtUtc.Should().Be(updateTime);
+    }
+
+    [Fact]
+    public void UpdateProfile_WithUnknownTimeZone_ThrowsArgumentException()
+    {
+        var clinic = Clinic.Create("Clinic", "C-01", _now);
+
+        var act = () => clinic.UpdateProfile("Clinic", "Galaxy/Deep", _now);
+        act.Should().Throw<ArgumentException>().WithParameterName("timeZoneId");
+    }
 }

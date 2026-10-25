@@ -52,4 +52,20 @@ public sealed class JwtTokenService : IJwtTokenService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public DateTime ComputeDefaultExpiry(DateTime utcNow)
+    {
+        var raw = _configuration["Jwt:ExpiryMinutes"];
+        var minutes = int.TryParse(raw, out var parsed) ? parsed : 480;
+        if (minutes < 5)
+        {
+            minutes = 5;
+        }
+        else if (minutes > 1440)
+        {
+            minutes = 1440;
+        }
+
+        return utcNow.AddMinutes(minutes);
+    }
 }

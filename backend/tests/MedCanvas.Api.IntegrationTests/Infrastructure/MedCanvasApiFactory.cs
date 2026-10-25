@@ -41,6 +41,10 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.DefaultAudience);
         builder.UseSetting("Jwt:ExpiryMinutes", "240");
 
+        // Integration tests fire many auth requests from one address; the dedicated
+        // rate-limit test overrides this locally to exercise the 429 path.
+        builder.UseSetting("RateLimiting:Auth:PermitLimit", "10000");
+
         builder.ConfigureTestServices(services =>
         {
             var dbContextDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<MedCanvasDbContext>));

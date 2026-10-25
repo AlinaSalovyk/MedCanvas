@@ -1,6 +1,12 @@
 import type {
-  AuthTokenResponse,
+  ClinicMemberDto,
+  ClinicMembershipSummary,
+  ClinicSettingsDto,
   LoginRequest,
+  LoginResult,
+  OnboardClinicRequest,
+  AddClinicMemberRequest,
+  UpdateClinicSettingsRequest,
   CurrentUserResponse,
   PatientDto,
   CreatePatientRequest,
@@ -135,12 +141,14 @@ export class MedCanvasApiClient {
 
   // --- Auth Endpoints ---
 
-  public async login(req: LoginRequest): Promise<AuthTokenResponse> {
-    const res = await this.request<AuthTokenResponse>("/auth/login", {
+  public async login(req: LoginRequest): Promise<LoginResult> {
+    const res = await this.request<LoginResult>("/auth/login", {
       method: "POST",
       body: JSON.stringify(req),
     });
-    this.setToken(res.data.token);
+    if (res.data.token) {
+      this.setToken(res.data.token);
+    }
     return res.data;
   }
 
@@ -153,6 +161,77 @@ export class MedCanvasApiClient {
 
   public logout(): void {
     this.setToken(null);
+  }
+
+  public async getMyClinics(): Promise<ClinicMembershipSummary[]> {
+    const res = await this.request<ClinicMembershipSummary[]>("/auth/clinics", { method: "GET" });
+    return res.data;
+  }
+
+  public async switchClinic(clinicId: string): Promise<LoginResult> {
+    const res = await this.request<LoginResult>("/auth/switch-clinic", {
+      method: "POST",
+      body: JSON.stringify({ clinicId }),
+    });
+    if (res.data.token) {
+      this.setToken(res.data.token);
+    }
+    return res.data;
+  }
+
+  // --- Clinic Endpoints ---
+
+  public async onboardClinic(req: OnboardClinicRequest): Promise<LoginResult> {
+    const res = await this.request<LoginResult>("/clinics/onboarding", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    if (res.data.token) {
+      this.setToken(res.data.token);
+    }
+    return res.data;
+  }
+
+  public async getClinicMembers(): Promise<ClinicMemberDto[]> {
+    const res = await this.request<ClinicMemberDto[]>("/clinics/members", { method: "GET" });
+    return res.data;
+  }
+
+  public async addClinicMember(req: AddClinicMemberRequest): Promise<ClinicMemberDto> {
+    const res = await this.request<ClinicMemberDto>("/clinics/members", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    return res.data;
+  }
+
+  public async changeMemberRole(userId: string, role: string): Promise<ClinicMemberDto> {
+    const res = await this.request<ClinicMemberDto>(`/clinics/members/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+    return res.data;
+  }
+
+  public async revokeClinicMember(userId: string): Promise<void> {
+    await this.request<void>(`/clinics/members/${userId}`, { method: "DELETE" });
+  }
+
+  public async activateClinicMember(userId: string): Promise<void> {
+    await this.request<void>(`/clinics/members/${userId}/activate`, { method: "POST" });
+  }
+
+  public async getClinicSettings(): Promise<ClinicSettingsDto> {
+    const res = await this.request<ClinicSettingsDto>("/clinics/settings", { method: "GET" });
+    return res.data;
+  }
+
+  public async updateClinicSettings(req: UpdateClinicSettingsRequest): Promise<ClinicSettingsDto> {
+    const res = await this.request<ClinicSettingsDto>("/clinics/settings", {
+      method: "PUT",
+      body: JSON.stringify(req),
+    });
+    return res.data;
   }
 
   // --- Patient Endpoints ---
