@@ -6,6 +6,9 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { StaffPage } from "./pages/StaffPage";
 import { ClinicSettingsPage } from "./pages/ClinicSettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { CalendarPage } from "./pages/CalendarPage";
+import { ChairsPage } from "./pages/ChairsPage";
+import { AvailabilityPage } from "./pages/AvailabilityPage";
 import { PatientsPage } from "./pages/PatientsPage";
 import { PatientDetailPage } from "./pages/PatientDetailPage";
 import type { ReactNode } from "react";
@@ -45,6 +48,7 @@ export function WorkspaceApp(): ReactNode {
         }
       >
         <Route index element={<Navigate to="staff" replace />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
         <Route
@@ -60,6 +64,22 @@ export function WorkspaceApp(): ReactNode {
           element={
             <RequireRole roles={["ClinicAdmin"]}>
               <ClinicSettingsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="chairs"
+          element={
+            <RequireRole roles={["ClinicAdmin"]}>
+              <ChairsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="availability"
+          element={
+            <RequireRole roles={["ClinicAdmin"]}>
+              <AvailabilityPage />
             </RequireRole>
           }
         />

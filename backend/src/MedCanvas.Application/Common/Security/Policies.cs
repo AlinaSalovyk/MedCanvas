@@ -15,4 +15,6 @@ public static class Policies
     public const string CanExportFhir = "CanExportFhir";
     public const string CanReadClinicProfile = "CanReadClinicProfile";
     public const string CanManageClinic = "CanManageClinic";
+    public const string CanReadCalendar = "CanReadCalendar";
+    public const string CanManageCalendar = "CanManageCalendar";
 }

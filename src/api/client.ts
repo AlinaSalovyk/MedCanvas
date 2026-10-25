@@ -1,4 +1,9 @@
 import type {
+  AppointmentDto,
+  ChairDto,
+  AvailabilityTemplateDto,
+  CalendarWindowOptions,
+  CreateAppointmentRequest,
   PatientListOptions,
   PatientDuplicateHint,
   ClinicMemberDto,
@@ -307,6 +312,109 @@ export class MedCanvasApiClient {
   public async restorePatient(id: string): Promise<PatientDto> {
     const res = await this.request<PatientDto>(`/patients/${id}/restore`, { method: "POST" });
     return res.data;
+  }
+
+
+  // --- Scheduling Endpoints (M03) ---
+
+  public async getAppointments(options: CalendarWindowOptions): Promise<AppointmentDto[]> {
+    const query = new URLSearchParams({
+      fromUtc: options.fromUtc,
+      toUtc: options.toUtc,
+    });
+    if (options.clinicianId) query.set("clinicianId", options.clinicianId);
+    if (options.chairId) query.set("chairId", options.chairId);
+    if (options.status) query.set("status", options.status);
+    const res = await this.request<AppointmentDto[]>(`/appointments?${query.toString()}`);
+    return res.data;
+  }
+
+  public async createAppointment(req: CreateAppointmentRequest): Promise<AppointmentDto> {
+    const res = await this.request<AppointmentDto>("/appointments", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    return res.data;
+  }
+
+  public async appointmentAction(id: string, action: "confirm" | "arrive" | "complete" | "no-show"): Promise<AppointmentDto> {
+    const res = await this.request<AppointmentDto>(`/appointments/${id}/${action}`, { method: "POST" });
+    return res.data;
+  }
+
+  public async cancelAppointment(id: string, reason: string): Promise<AppointmentDto> {
+    const res = await this.request<AppointmentDto>(`/appointments/${id}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    return res.data;
+  }
+
+  public async rescheduleAppointment(
+    id: string,
+    newStartAtUtc: string,
+    newEndAtUtc: string,
+    expectedVersion: number,
+    etag?: string | null,
+    newChairId?: string
+  ): Promise<AppointmentDto> {
+    const res = await this.request<AppointmentDto>(
+      `/appointments/${id}/reschedule`,
+      {
+        method: "POST",
+        body: JSON.stringify({ newStartAtUtc, newEndAtUtc, newChairId, expectedVersion }),
+      },
+      { "If-Match": etag ?? `"${expectedVersion}"` }
+    );
+    return res.data;
+  }
+
+  public async getChairs(): Promise<ChairDto[]> {
+    const res = await this.request<ChairDto[]>("/chairs");
+    return res.data;
+  }
+
+  public async createChair(name: string): Promise<ChairDto> {
+    const res = await this.request<ChairDto>("/chairs", { method: "POST", body: JSON.stringify({ name }) });
+    return res.data;
+  }
+
+  public async renameChair(id: string, name: string): Promise<ChairDto> {
+    const res = await this.request<ChairDto>(`/chairs/${id}/name`, { method: "PUT", body: JSON.stringify({ name }) });
+    return res.data;
+  }
+
+  public async setChairActive(id: string, active: boolean): Promise<ChairDto> {
+    const res = await this.request<ChairDto>(`/chairs/${id}/${active ? "activate" : "deactivate"}`, { method: "POST" });
+    return res.data;
+  }
+
+  public async getAvailability(clinicianUserId: string): Promise<AvailabilityTemplateDto> {
+    const res = await this.request<AvailabilityTemplateDto>(`/availability/${clinicianUserId}`);
+    return res.data;
+  }
+
+  public async replaceAvailability(
+    clinicianUserId: string,
+    windows: Array<{ dayOfWeek: number; startTime: string; endTime: string; breaks: Array<{ startTime: string; endTime: string }> }>
+  ): Promise<AvailabilityTemplateDto> {
+    const res = await this.request<AvailabilityTemplateDto>(`/availability/${clinicianUserId}`, {
+      method: "PUT",
+      body: JSON.stringify({ windows }),
+    });
+    return res.data;
+  }
+
+  public async addAvailabilityException(clinicianUserId: string, date: string, isWorkingDay: boolean): Promise<AvailabilityTemplateDto> {
+    const res = await this.request<AvailabilityTemplateDto>(`/availability/${clinicianUserId}/exceptions`, {
+      method: "POST",
+      body: JSON.stringify({ date, isWorkingDay }),
+    });
+    return res.data;
+  }
+
+  public async removeAvailabilityException(exceptionId: string): Promise<void> {
+    await this.request<void>(`/availability/exceptions/${exceptionId}`, { method: "DELETE" });
   }
 
   // --- Encounter Endpoints ---

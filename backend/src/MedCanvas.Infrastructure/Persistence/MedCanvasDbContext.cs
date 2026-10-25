@@ -17,6 +17,11 @@ public class MedCanvasDbContext : DbContext, IMedCanvasDbContext
     public DbSet<OdontogramRecord> OdontogramRecords => Set<OdontogramRecord>();
     public DbSet<OdontogramRevision> OdontogramRevisions => Set<OdontogramRevision>();
     public DbSet<ClinicalAuditEvent> ClinicalAuditEvents => Set<ClinicalAuditEvent>();
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<ClinicChair> ClinicChairs => Set<ClinicChair>();
+    public DbSet<ProviderAvailability> ProviderAvailabilities => Set<ProviderAvailability>();
+    public DbSet<ProviderAvailabilityBreak> ProviderAvailabilityBreaks => Set<ProviderAvailabilityBreak>();
+    public DbSet<ProviderAvailabilityException> ProviderAvailabilityExceptions => Set<ProviderAvailabilityException>();
 
     public MedCanvasDbContext(DbContextOptions<MedCanvasDbContext> options)
         : base(options)
