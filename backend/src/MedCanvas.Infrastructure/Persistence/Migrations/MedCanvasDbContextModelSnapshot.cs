@@ -22,6 +22,71 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MedCanvas.Domain.Entities.Appointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ChairId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicianUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("EndAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InternalNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReasonForVisit")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("StartAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChairId");
+
+                    b.HasIndex("ClinicId", "StartAtUtc");
+
+                    b.HasIndex("PatientId", "StartAtUtc");
+
+                    b.HasIndex("ClinicId", "ClinicianUserId", "StartAtUtc");
+
+                    b.ToTable("Appointments", (string)null);
+                });
+
             modelBuilder.Entity("MedCanvas.Domain.Entities.Clinic", b =>
                 {
                     b.Property<Guid>("Id")
@@ -60,6 +125,37 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Clinics", (string)null);
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ClinicChair", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ClinicChairs", (string)null);
                 });
 
             modelBuilder.Entity("MedCanvas.Domain.Entities.ClinicMembership", b =>
@@ -372,6 +468,104 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                     b.ToTable("Patients", (string)null);
                 });
 
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicianUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicianUserId");
+
+                    b.HasIndex("ClinicId", "ClinicianUserId", "DayOfWeek");
+
+                    b.ToTable("ProviderAvailabilities", (string)null);
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailabilityBreak", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("ProviderAvailabilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderAvailabilityId");
+
+                    b.ToTable("ProviderAvailabilityBreaks", (string)null);
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailabilityException", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicianUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsWorkingDay")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicianUserId");
+
+                    b.HasIndex("ClinicId", "ClinicianUserId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("ProviderAvailabilityExceptions", (string)null);
+                });
+
             modelBuilder.Entity("MedCanvas.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -408,6 +602,30 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.Appointment", b =>
+                {
+                    b.HasOne("MedCanvas.Domain.Entities.ClinicChair", null)
+                        .WithMany()
+                        .HasForeignKey("ChairId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MedCanvas.Domain.Entities.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ClinicChair", b =>
+                {
+                    b.HasOne("MedCanvas.Domain.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MedCanvas.Domain.Entities.ClinicMembership", b =>
@@ -535,6 +753,33 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                     b.HasOne("MedCanvas.Domain.Entities.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailability", b =>
+                {
+                    b.HasOne("MedCanvas.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicianUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailabilityBreak", b =>
+                {
+                    b.HasOne("MedCanvas.Domain.Entities.ProviderAvailability", null)
+                        .WithMany()
+                        .HasForeignKey("ProviderAvailabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedCanvas.Domain.Entities.ProviderAvailabilityException", b =>
+                {
+                    b.HasOne("MedCanvas.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicianUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
