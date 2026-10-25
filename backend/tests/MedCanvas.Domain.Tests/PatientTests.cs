@@ -141,6 +141,7 @@ public class PatientTests
             "+1234567890",
             "new@example.com",
             "MRN-2002",
+            expectedVersion: 1,
             updateTime);
 
         patient.FirstName.Should().Be("NewFirst");
@@ -149,6 +150,19 @@ public class PatientTests
         patient.Gender.Should().Be("Female");
         patient.ExternalMedicalRecordNumber.Should().Be("MRN-2002");
         patient.UpdatedAtUtc.Should().Be(updateTime);
+        patient.ConcurrencyVersion.Should().Be(2);
+    }
+
+    [Fact]
+    public void UpdateDemographics_WithStaleVersion_ThrowsConcurrencyConflict()
+    {
+        var patient = Patient.Create(_clinicId, "John", "Doe", null, null, null, null, null, null, _now);
+        patient.UpdateDemographics("John", "Doe II", null, null, null, null, null, expectedVersion: 1, _now.AddHours(1));
+
+        var act = () => patient.UpdateDemographics("John", "Doe III", null, null, null, null, null, expectedVersion: 1, _now.AddHours(2));
+
+        act.Should().Throw<MedCanvas.Domain.Exceptions.ConcurrencyConflictException>();
+        patient.LastName.Should().Be("Doe II");
     }
 
     [Fact]
@@ -188,10 +202,10 @@ public class PatientTests
             null,
             _now);
 
-        patient.Deactivate(_now.AddHours(1));
+        patient.Archive(_now.AddHours(1));
         patient.IsActive.Should().BeFalse();
 
-        patient.Activate(_now.AddHours(2));
+        patient.Restore(_now.AddHours(2));
         patient.IsActive.Should().BeTrue();
     }
 
