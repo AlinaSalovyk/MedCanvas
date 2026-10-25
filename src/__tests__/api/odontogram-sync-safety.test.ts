@@ -419,7 +419,7 @@ describe("OdontogramSyncBridge M04 — conflict resolution", () => {
 
   it("adopts the server copy on explicit resolution and resumes autosave", async () => {
     const fresh = dtoFor("enc-1", { version: "2.22", teeth: { "11": { toothSelection: "implant" } } }, 7);
-    const getSpy = vi.spyOn(client, "getOdontogramByEncounter")
+    vi.spyOn(client, "getOdontogramByEncounter")
       // conflict fresh-copy fetch
       .mockResolvedValueOnce({ odontogram: fresh, etag: '"7"' })
       // resolve fetch

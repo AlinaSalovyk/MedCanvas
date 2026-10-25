@@ -145,6 +145,16 @@ export function EncounterPage(): ReactNode {
         <span className={`ws-sync-chip ws-sync-${status}`} role="status" data-testid="sync-chip">
           {statusLabel[status] ?? status}
         </span>
+        {!isFinished && (
+          <button
+            type="button"
+            className="ws-button ws-button-primary"
+            disabled={completing || status === "conflict" || status === "recovery-required"}
+            onClick={() => void completeEncounter()}
+          >
+            {t("encounters.complete")}
+          </button>
+        )}
       </div>
 
       {statusError && status !== "conflict" && (
