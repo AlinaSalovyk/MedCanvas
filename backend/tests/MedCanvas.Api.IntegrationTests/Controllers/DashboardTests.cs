@@ -40,8 +40,12 @@ public class DashboardTests : IClassFixture<MedCanvasApiFactory>, IAsyncLifetime
             var patient = Patient.Create(clinic.Id, "Пацієнт", "Даш", null, null, null, null, null, null, now);
             var chair = ClinicChair.Create(clinic.Id, "Chair 1", now);
 
-            // Today: one confirmed (waiting), one completed
-            var todayStart = DateTime.UtcNow.Date;
+            // Today: one confirmed (waiting), one completed. "Today" is the CLINIC's
+            // local day (Europe/Kyiv), not the runner's UTC day — otherwise the test
+            // flakes when the runner's UTC date differs from the clinic's.
+            var kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
+            var localToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, kyiv).Date;
+            var todayStart = TimeZoneInfo.ConvertTimeToUtc(localToday, kyiv);
             var confirmed = Appointment.Create(clinic.Id, patient.Id, admin.Id, chair.Id, now.AddMinutes(30), now.AddMinutes(60), "Waiting slot", null, now);
             confirmed.Confirm(now);
             var completed = Appointment.Create(clinic.Id, patient.Id, admin.Id, chair.Id, todayStart.AddHours(1), todayStart.AddHours(2), "Done slot", null, now);
