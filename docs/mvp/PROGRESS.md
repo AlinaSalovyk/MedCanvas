@@ -44,7 +44,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
 | M07 | `feat/mvp-demo-billing` | — | — | — | — | NOT_STARTED | — |
 | M08 | `feat/mvp-follow-up-dashboard` | — | — | — | — | NOT_STARTED | — |
-| M09 | `test/mvp-end-to-end-hardening` | — | — | — | — | NOT_STARTED | — |
+| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | — | — | — | IN_PROGRESS | — |
 
 ## Decisions log
 
@@ -56,7 +56,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M08 complete on `feat/mvp-follow-up-dashboard`: real-data role-scoped dashboard (workspace index) + follow-up booking prefill. Backend 477/477; Playwright 17/17; workspace 24/24. Pushing for PR.
+M08 merged to `main` (`3ad32b4`). M09 branch `test/mvp-end-to-end-hardening` created from `3ad32b4`: full-workflow verification, hardening drills, final report.
 
 ## Known blockers
 
