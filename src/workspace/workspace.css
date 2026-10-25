@@ -585,3 +585,38 @@
 .ws-inline-form {
   margin-top: 0.75rem;
 }
+
+/* --- demo billing (M07) --- */
+
+.ws-billing-section {
+  margin-top: 1rem;
+  border-top: 1px dashed #c4cfdc;
+  padding-top: 1rem;
+}
+
+.ws-demo-badge {
+  display: inline-block;
+  background: #fff3cd;
+  border: 1px solid #e8c98a;
+  color: #8a4b00;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.5rem;
+  text-transform: uppercase;
+}
+
+.ws-invoice {
+  border: 1px solid #e1e7ef;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-top: 0.75rem;
+}
+
+.ws-invoice-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
