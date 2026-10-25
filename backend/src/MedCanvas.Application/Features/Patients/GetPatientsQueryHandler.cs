@@ -29,7 +29,7 @@ public sealed class GetPatientsQueryHandler : IRequestHandler<GetPatientsQuery, 
 
         var query = _dbContext.Patients
             .AsNoTracking()
-            .Where(p => p.ClinicId == clinicId && p.IsActive);
+            .Where(p => p.ClinicId == clinicId && (request.IncludeArchived || p.IsActive));
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
@@ -47,9 +47,22 @@ public sealed class GetPatientsQueryHandler : IRequestHandler<GetPatientsQuery, 
         var page = request.Page < 1 ? 1 : request.Page;
         var pageSize = request.PageSize < 1 ? 20 : (request.PageSize > 100 ? 100 : request.PageSize);
 
+        query = (request.SortBy?.Trim().ToLowerInvariant(), request.SortDescending) switch
+        {
+            ("lastname", false) => query.OrderBy(p => p.LastName).ThenBy(p => p.FirstName),
+            ("lastname", true) => query.OrderByDescending(p => p.LastName).ThenByDescending(p => p.FirstName),
+            ("firstname", false) => query.OrderBy(p => p.FirstName).ThenBy(p => p.LastName),
+            ("firstname", true) => query.OrderByDescending(p => p.FirstName).ThenByDescending(p => p.LastName),
+            ("birthdate", false) => query.OrderBy(p => p.DateOfBirth).ThenBy(p => p.LastName),
+            ("birthdate", true) => query.OrderByDescending(p => p.DateOfBirth).ThenByDescending(p => p.LastName),
+            ("created", false) => query.OrderBy(p => p.CreatedAtUtc),
+            ("created", true) => query.OrderByDescending(p => p.CreatedAtUtc),
+            _ => request.SortDescending
+                ? query.OrderByDescending(p => p.LastName).ThenByDescending(p => p.FirstName)
+                : query.OrderBy(p => p.LastName).ThenBy(p => p.FirstName),
+        };
+
         var items = await query
-            .OrderBy(p => p.LastName)
-            .ThenBy(p => p.FirstName)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(p => new PatientDto(
@@ -65,6 +78,7 @@ public sealed class GetPatientsQueryHandler : IRequestHandler<GetPatientsQuery, 
                 p.ExternalMedicalRecordNumber,
                 p.MedicalAlerts,
                 p.IsActive,
+                p.ConcurrencyVersion,
                 p.CreatedAtUtc,
                 p.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
