@@ -1,4 +1,5 @@
 import type {
+  PerformedProcedureDto,
   CatalogItemDto,
   CreateCatalogItemRequest,
   UpdateCatalogItemRequest,
@@ -488,6 +489,38 @@ export class MedCanvasApiClient {
 
   public async cancelTreatmentPlan(planId: string): Promise<TreatmentPlanDto> {
     const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/cancel`, { method: "POST" });
+    return res.data;
+  }
+
+
+  // --- Treatment Execution Endpoints (M06) ---
+
+  public async getEncounterPerformedProcedures(encounterId: string): Promise<PerformedProcedureDto[]> {
+    const res = await this.request<PerformedProcedureDto[]>(`/encounters/${encounterId}/performed-procedures`);
+    return res.data;
+  }
+
+  public async getPatientPerformedProcedures(patientId: string): Promise<PerformedProcedureDto[]> {
+    const res = await this.request<PerformedProcedureDto[]>(`/patients/${patientId}/performed-procedures`);
+    return res.data;
+  }
+
+  public async recordPerformedProcedure(
+    encounterId: string,
+    req: { catalogItemId: string; idempotencyKey: string; toothFdi?: string | null; quantity: number; clinicalNote?: string | null; treatmentPlanItemId?: string | null }
+  ): Promise<PerformedProcedureDto> {
+    const res = await this.request<PerformedProcedureDto>(`/encounters/${encounterId}/performed-procedures`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    return res.data;
+  }
+
+  public async voidPerformedProcedure(id: string, reason: string): Promise<PerformedProcedureDto> {
+    const res = await this.request<PerformedProcedureDto>(`/performed-procedures/${id}/void`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
     return res.data;
   }
 

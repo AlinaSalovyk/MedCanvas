@@ -130,6 +130,21 @@ plan items (INV-007, FR-405).
 
 ---
 
+### 2.2d Treatment Execution (M06)
+Performed procedures are explicit clinician recordings with idempotent retries and
+compensating voids (history never rewritten).
+
+| Method | Route | Description | Auth |
+|---|---|---|---|
+| POST | /api/v1/encounters/{encounterId}/performed-procedures | Record a performed procedure (open encounter only; idempotencyKey unique per clinic — retry returns the original record); plan linkage marks the plan item Performed and moves Approved plans to InProgress | Admin/Clinician |
+| POST | /api/v1/performed-procedures/{id}/void | Compensating void with mandatory reason (record stays visible) | Admin/Clinician |
+| GET | /api/v1/encounters/{encounterId}/performed-procedures | Encounter's recorded procedures | Any member |
+| GET | /api/v1/patients/{patientId}/performed-procedures | Patient's treatment history | Any member |
+
+Audited: PROCEDURE_PERFORMED, PROCEDURE_VOIDED.
+
+---
+
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|

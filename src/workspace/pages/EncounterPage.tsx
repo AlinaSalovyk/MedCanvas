@@ -6,6 +6,7 @@ import { OdontogramSyncBridge } from "../../api/odontogramSync";
 import type { SyncStatus } from "../../api/odontogramSync";
 import { destroyOdontogram } from "../../odontogram";
 import App from "../../App";
+import { PerformedProceduresPanel } from "./PerformedProceduresPanel";
 import type { OdontogramResponseDto } from "../../api/types";
 import { useAuth } from "../AuthContext";
 
@@ -193,9 +194,12 @@ export function EncounterPage(): ReactNode {
       )}
 
       {loaded ? (
-        <div className="ws-encounter-engine">
-          <App enableNotes />
-        </div>
+        <>
+          <div className="ws-encounter-engine">
+            <App enableNotes />
+          </div>
+          {!isFinished && <PerformedProceduresPanel encounterId={encounter.id} />}
+        </>
       ) : (
         <p aria-live="polite">{t("common.loading")}</p>
       )}

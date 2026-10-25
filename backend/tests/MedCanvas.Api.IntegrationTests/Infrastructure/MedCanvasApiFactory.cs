@@ -104,6 +104,7 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         context.ProviderAvailabilities.RemoveRange(context.ProviderAvailabilities);
         context.ProviderAvailabilityExceptions.RemoveRange(context.ProviderAvailabilityExceptions);
         context.ClinicChairs.RemoveRange(context.ClinicChairs);
+        context.PerformedProcedures.RemoveRange(context.PerformedProcedures);
         context.TreatmentPlanItems.RemoveRange(context.TreatmentPlanItems);
         context.TreatmentPlans.RemoveRange(context.TreatmentPlans);
         context.ProcedureCatalogItems.RemoveRange(context.ProcedureCatalogItems);
