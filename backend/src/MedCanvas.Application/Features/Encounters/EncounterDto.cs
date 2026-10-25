@@ -9,5 +9,6 @@ public sealed record EncounterDto(
     string? ChiefComplaint,
     string? ClinicalNotes,
     string Status,
+    Guid? AppointmentId,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc);

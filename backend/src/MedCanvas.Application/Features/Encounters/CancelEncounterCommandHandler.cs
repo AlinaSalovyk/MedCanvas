@@ -53,6 +53,7 @@ public sealed class CancelEncounterCommandHandler : IRequestHandler<CancelEncoun
             encounter.ChiefComplaint,
             encounter.ClinicalNotes,
             encounter.Status.ToString(),
+            encounter.AppointmentId,
             encounter.CreatedAtUtc,
             encounter.UpdatedAtUtc);
     }
