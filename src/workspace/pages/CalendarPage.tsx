@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppointmentDto, AppointmentStatus, PatientDto } from "../../api/types";
@@ -58,6 +59,7 @@ function fromLocalInput(value: string): Date {
 export function CalendarPage(): ReactNode {
   const { client, session, t } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const canManage = session?.role === "ClinicAdmin" || session?.role === "Clinician" || session?.role === "Assistant";
 
@@ -104,6 +106,17 @@ export function CalendarPage(): ReactNode {
     onSuccess: () => {
       setActionError(null);
       invalidate();
+    },
+    onError: (err: Error) => setActionError(err.message),
+  });
+
+  const startEncounter = useMutation({
+    mutationFn: (appt: AppointmentDto) =>
+      client.startEncounter({ patientId: appt.patientId, appointmentId: appt.id }),
+    onSuccess: (encounter) => {
+      setActionError(null);
+      invalidate();
+      navigate("/encounters/" + encounter.id);
     },
     onError: (err: Error) => setActionError(err.message),
   });
@@ -237,6 +250,16 @@ export function CalendarPage(): ReactNode {
                       <div className="ws-appt-status">{t(`calendar.statuses.${appt.status}`)}</div>
                       {canManage && appt.status !== "Completed" && appt.status !== "Cancelled" && appt.status !== "NoShow" && (
                         <div className="ws-appt-actions">
+                          {(appt.status === "Confirmed" || appt.status === "Arrived") && (
+                            <button
+                              type="button"
+                              className="ws-button ws-button-small ws-button-primary"
+                              disabled={startEncounter.isPending}
+                              onClick={() => startEncounter.mutate(appt)}
+                            >
+                              {t("calendar.startEncounter")}
+                            </button>
+                          )}
                           {(NEXT_ACTIONS[appt.status] ?? []).map(({ action: act, key: actionKey }) => (
                             <button
                               key={actionKey}
