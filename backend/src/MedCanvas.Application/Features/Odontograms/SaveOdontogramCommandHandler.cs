@@ -44,6 +44,14 @@ public sealed class SaveOdontogramCommandHandler : IRequestHandler<SaveOdontogra
             throw new NotFoundException(nameof(DentalEncounter), request.EncounterId);
         }
 
+        // FR-306: a finished (completed/cancelled) encounter's clinical record is sealed —
+        // no silent back-dated edits. Corrections go through an explicitly defined process.
+        if (encounter.Status != Domain.Enums.EncounterStatus.InProgress)
+        {
+            throw new Domain.Exceptions.DomainException(
+                $"Encounter is '{encounter.Status}'; its odontogram can no longer be modified. Start a new encounter for corrections.");
+        }
+
         string payloadVersion = "2.22";
         try
         {
