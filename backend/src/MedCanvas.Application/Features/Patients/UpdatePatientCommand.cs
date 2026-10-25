@@ -11,4 +11,5 @@ public sealed record UpdatePatientCommand(
     string? Phone = null,
     string? Email = null,
     string? ExternalMedicalRecordNumber = null,
-    string? MedicalAlerts = null) : IRequest<PatientDto>;
+    string? MedicalAlerts = null,
+    int? ExpectedVersion = null) : IRequest<PatientDto>;
