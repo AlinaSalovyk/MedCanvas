@@ -162,11 +162,15 @@ export interface DentalEncounterDto {
   completedAtUtc?: string | null;
   chiefComplaint?: string | null;
   status: "InProgress" | "Completed" | "Cancelled";
+  appointmentId?: string | null;
+  createdAtUtc?: string;
+  updatedAtUtc?: string | null;
 }
 
 export interface StartEncounterRequest {
   patientId: string;
   chiefComplaint?: string | null;
+  appointmentId?: string | null;
 }
 
 export interface CompleteEncounterRequest {
