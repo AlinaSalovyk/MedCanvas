@@ -16,6 +16,11 @@ public interface IMedCanvasDbContext
     DbSet<OdontogramRecord> OdontogramRecords { get; }
     DbSet<OdontogramRevision> OdontogramRevisions { get; }
     DbSet<ClinicalAuditEvent> ClinicalAuditEvents { get; }
+    DbSet<Appointment> Appointments { get; }
+    DbSet<ClinicChair> ClinicChairs { get; }
+    DbSet<ProviderAvailability> ProviderAvailabilities { get; }
+    DbSet<ProviderAvailabilityBreak> ProviderAvailabilityBreaks { get; }
+    DbSet<ProviderAvailabilityException> ProviderAvailabilityExceptions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
