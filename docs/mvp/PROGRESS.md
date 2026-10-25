@@ -44,7 +44,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
 | M07 | `feat/mvp-demo-billing` | — | — | — | — | NOT_STARTED | — |
 | M08 | `feat/mvp-follow-up-dashboard` | — | — | — | — | NOT_STARTED | — |
-| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | — | — | — | IN_PROGRESS | — |
+| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | see PR | — | — | TESTING | `final-report.md` |
 
 ## Decisions log
 
@@ -56,7 +56,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M08 merged to `main` (`3ad32b4`). M09 branch `test/mvp-end-to-end-hardening` created from `3ad32b4`: full-workflow verification, hardening drills, final report.
+M09 complete on `test/mvp-end-to-end-hardening`: E2E-MVP-001 passes through the real ASP.NET pipeline against real PostgreSQL (12 TZ steps incl. race-safe booking, idempotent procedures, overpay rejection, sealing, two-clinic isolation, persistence reload). Backend 478/478; Vitest 2680/2-skip; Playwright 17/17 exit 0. Final report: `final-report.md`. Pushing for PR.
 
 ## Known blockers
 
