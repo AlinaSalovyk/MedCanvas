@@ -16,7 +16,7 @@ public sealed class Appointment : BaseEntity, IAggregateRoot
     {
         [AppointmentStatus.Scheduled] = [AppointmentStatus.Confirmed, AppointmentStatus.Cancelled, AppointmentStatus.NoShow],
         [AppointmentStatus.Confirmed] = [AppointmentStatus.Arrived, AppointmentStatus.Cancelled, AppointmentStatus.NoShow],
-        [AppointmentStatus.Arrived] = [AppointmentStatus.InProgress, AppointmentStatus.Cancelled],
+        [AppointmentStatus.Arrived] = [AppointmentStatus.InProgress, AppointmentStatus.Completed, AppointmentStatus.Cancelled],
         [AppointmentStatus.InProgress] = [AppointmentStatus.Completed],
         [AppointmentStatus.Completed] = [],
         [AppointmentStatus.Cancelled] = [],
