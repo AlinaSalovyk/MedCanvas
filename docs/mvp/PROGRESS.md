@@ -6,6 +6,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 ## Phase status
 
 | Phase | State | Notes |
+| **PROGRAM** | **COMPLETE** | M00–M09 all merged; E2E-MVP-001 passes; verdict: MVP FUNCTIONALLY COMPLETE WITH DOCUMENTED LIMITATIONS (see final-report.md) |
 |---|---|---|
 | Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
 | M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
@@ -44,7 +45,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
 | M07 | `feat/mvp-demo-billing` | — | — | — | — | NOT_STARTED | — |
 | M08 | `feat/mvp-follow-up-dashboard` | — | — | — | — | NOT_STARTED | — |
-| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | see PR | — | — | TESTING | `final-report.md` |
+| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | `f207e2b` | [#12](https://github.com/AlinaSalovyk/MedCanvas/pull/12) | `d1d67da` | **MERGED** | `final-report.md` |
 
 ## Decisions log
 
@@ -56,7 +57,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M09 complete on `test/mvp-end-to-end-hardening`: E2E-MVP-001 passes through the real ASP.NET pipeline against real PostgreSQL (12 TZ steps incl. race-safe booking, idempotent procedures, overpay rejection, sealing, two-clinic isolation, persistence reload). Backend 478/478; Vitest 2680/2-skip; Playwright 17/17 exit 0. Final report: `final-report.md`. Pushing for PR.
+**PROGRAM COMPLETE.** M09 merged to `main` (`d1d67da`); all ten modules M00–M09 delivered through CI-verified PRs #3–#12; local `main` synchronized.
 
 ## Known blockers
 
