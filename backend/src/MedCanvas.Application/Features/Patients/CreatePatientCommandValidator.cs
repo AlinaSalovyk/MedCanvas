@@ -28,7 +28,7 @@ public sealed class CreatePatientCommandValidator : AbstractValidator<CreatePati
             .When(x => !string.IsNullOrWhiteSpace(x.ExternalMedicalRecordNumber));
 
         RuleFor(x => x.Gender)
-            .MaximumLength(50).WithMessage("Gender cannot exceed 50 characters.")
+            .MaximumLength(20).WithMessage("Gender cannot exceed 20 characters.")
             .When(x => !string.IsNullOrWhiteSpace(x.Gender));
     }
 }
