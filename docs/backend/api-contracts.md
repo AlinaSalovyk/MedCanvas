@@ -67,10 +67,13 @@ All patient operations are scoped to the authenticated caller's active `clinicId
 
 | Method | Route | Description |
 |---|---|---|
-| `GET` | `/api/v1/patients` | Search patients with pagination (`search`/`searchTerm`, `page`/`pageNumber`, `pageSize`) |
-| `GET` | `/api/v1/patients/{id}` | Retrieve detailed patient record |
-| `POST` | `/api/v1/patients` | Register a new patient in the active clinic |
-| `PUT` | `/api/v1/patients/{id}` | Update patient demographics and medical alerts |
+| `GET` | `/api/v1/patients` | Search patients with pagination (`search`/`searchTerm`, `page`/`pageNumber`, `pageSize`), server-side sorting (`sortBy` = `lastname`/`firstname`/`birthdate`/`created`, `sortDescending`), and `includeArchived` (default: active only). Responses carry `concurrencyVersion` per item. |
+| `GET` | `/api/v1/patients/{id}` | Retrieve detailed patient record; response includes `ETag` |
+| `POST` | `/api/v1/patients` | Register a new patient in the active clinic; response carries `ETag` |
+| `PUT` | `/api/v1/patients/{id}` | Update patient demographics and medical alerts — **requires strong `If-Match`** (missing ⇒ 428, stale ⇒ 412, same semantics as odontogram saves); body carries matching `expectedVersion`; response carries the new `ETag` |
+| `POST` | `/api/v1/patients/{id}/archive` | Archive the patient (soft state; history readable; new encounters blocked with 400) — audited `PATIENT_ARCHIVED` |
+| `POST` | `/api/v1/patients/{id}/restore` | Restore an archived patient — audited `PATIENT_RESTORED` |
+| `GET` | `/api/v1/patients/duplicates` | Duplicate hint by `externalMedicalRecordNumber` or `firstName`+`lastName`+`dateOfBirth` (advisory only; clinic-scoped) |
 | `GET` | `/api/v1/patients/{id}/encounters` | List all encounters for a patient (chronological) |
 
 ---
