@@ -99,6 +99,11 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         context.OdontogramRevisions.RemoveRange(context.OdontogramRevisions);
         context.OdontogramRecords.RemoveRange(context.OdontogramRecords);
         context.DentalEncounters.RemoveRange(context.DentalEncounters);
+        context.Appointments.RemoveRange(context.Appointments);
+        context.ProviderAvailabilityBreaks.RemoveRange(context.ProviderAvailabilityBreaks);
+        context.ProviderAvailabilities.RemoveRange(context.ProviderAvailabilities);
+        context.ProviderAvailabilityExceptions.RemoveRange(context.ProviderAvailabilityExceptions);
+        context.ClinicChairs.RemoveRange(context.ClinicChairs);
         context.Patients.RemoveRange(context.Patients);
         context.ClinicMemberships.RemoveRange(context.ClinicMemberships);
         context.Users.RemoveRange(context.Users);
