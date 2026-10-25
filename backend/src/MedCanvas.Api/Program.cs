@@ -122,6 +122,19 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanManageClinic, policy =>
         policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
             MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin)));
+
+    options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanReadCalendar, policy =>
+        policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
+            MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,
+            MedCanvas.Domain.Enums.MembershipRole.Clinician,
+            MedCanvas.Domain.Enums.MembershipRole.Assistant,
+            MedCanvas.Domain.Enums.MembershipRole.Viewer)));
+
+    options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanManageCalendar, policy =>
+        policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
+            MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,
+            MedCanvas.Domain.Enums.MembershipRole.Clinician,
+            MedCanvas.Domain.Enums.MembershipRole.Assistant)));
 });
 
 // CORS policy
