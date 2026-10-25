@@ -25,6 +25,8 @@ public interface IMedCanvasDbContext
     DbSet<TreatmentPlan> TreatmentPlans { get; }
     DbSet<TreatmentPlanItem> TreatmentPlanItems { get; }
     DbSet<PerformedProcedure> PerformedProcedures { get; }
+    DbSet<Invoice> Invoices { get; }
+    DbSet<SimulatedPayment> SimulatedPayments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
