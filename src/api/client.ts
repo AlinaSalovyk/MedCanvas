@@ -1,4 +1,5 @@
 import type {
+  InvoiceDto,
   PerformedProcedureDto,
   CatalogItemDto,
   CreateCatalogItemRequest,
@@ -518,6 +519,40 @@ export class MedCanvasApiClient {
 
   public async voidPerformedProcedure(id: string, reason: string): Promise<PerformedProcedureDto> {
     const res = await this.request<PerformedProcedureDto>(`/performed-procedures/${id}/void`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    return res.data;
+  }
+
+
+  // --- Demo Billing Endpoints (M07) ---
+
+  public async getInvoice(invoiceId: string): Promise<InvoiceDto> {
+    const res = await this.request<InvoiceDto>(`/invoices/${invoiceId}`);
+    return res.data;
+  }
+
+  public async getPatientInvoices(patientId: string): Promise<InvoiceDto[]> {
+    const res = await this.request<InvoiceDto[]>(`/invoices/by-patient/${patientId}`);
+    return res.data;
+  }
+
+  public async createInvoiceFromEncounter(encounterId: string): Promise<InvoiceDto> {
+    const res = await this.request<InvoiceDto>(`/invoices/from-encounter/${encounterId}`, { method: "POST", body: "{}" });
+    return res.data;
+  }
+
+  public async registerSimulatedPayment(invoiceId: string, amount: number, idempotencyKey: string, methodLabel = "Каса (демо)"): Promise<InvoiceDto> {
+    const res = await this.request<InvoiceDto>(`/invoices/${invoiceId}/simulated-payments`, {
+      method: "POST",
+      body: JSON.stringify({ amount, methodLabel, idempotencyKey }),
+    });
+    return res.data;
+  }
+
+  public async voidInvoice(invoiceId: string, reason: string): Promise<InvoiceDto> {
+    const res = await this.request<InvoiceDto>(`/invoices/${invoiceId}/void`, {
       method: "POST",
       body: JSON.stringify({ reason }),
     });

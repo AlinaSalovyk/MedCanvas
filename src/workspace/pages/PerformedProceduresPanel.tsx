@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../AuthContext";
+import { InvoiceBillingSection } from "./InvoiceBillingSection";
 
 /** M06: performed-procedures panel on the encounter workspace. Every entry is an
  *  explicit clinician action with an idempotency key; corrections are voids. */
@@ -160,6 +161,7 @@ export function PerformedProceduresPanel({ encounterId }: { encounterId: string 
           </tbody>
         </table>
       )}
+      <InvoiceBillingSection encounterId={encounterId} />
     </div>
   );
 }

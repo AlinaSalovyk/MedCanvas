@@ -385,3 +385,46 @@ export interface PerformedProcedureDto {
   performedByFullName: string;
   performedAtUtc: string;
 }
+
+// --- Demo billing (M07): every payment is a SIMULATED demonstration record ---
+
+export type InvoiceStatus = "Issued" | "PartiallySimulated" | "FullySimulated" | "Voided";
+export type SimulatedPaymentStatus = "Recorded" | "Voided";
+
+export interface InvoiceLineDto {
+  performedProcedureId: string;
+  catalogItemName: string;
+  toothFdi?: string | null;
+  quantity: number;
+  unitPriceSnapshot: number;
+  totalAmount: number;
+}
+
+export interface SimulatedPaymentDto {
+  id: string;
+  amount: number;
+  methodLabel: string;
+  status: SimulatedPaymentStatus;
+  voidReason?: string | null;
+  recordedByFullName: string;
+  recordedAtUtc: string;
+}
+
+export interface InvoiceDto {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  patientFullName: string;
+  encounterId: string;
+  invoiceNumber: string;
+  totalAmount: number;
+  currency: string;
+  status: InvoiceStatus;
+  simulatedPaid: number;
+  remainingBalance: number;
+  isDemo: boolean;
+  lines: InvoiceLineDto[];
+  payments: SimulatedPaymentDto[];
+  createdAtUtc: string;
+  updatedAtUtc?: string | null;
+}
