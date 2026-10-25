@@ -294,3 +294,72 @@ export interface CalendarWindowOptions {
   chairId?: string;
   status?: AppointmentStatus;
 }
+
+// --- Treatment planning (M05) ---
+
+export interface CatalogItemDto {
+  id: string;
+  clinicId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  defaultPrice: number;
+  estimatedDurationMinutes: number;
+  isActive: boolean;
+}
+
+export type TreatmentPlanStatus = "Draft" | "Proposed" | "Approved" | "InProgress" | "Completed" | "Cancelled";
+
+export interface TreatmentPlanItemDto {
+  id: string;
+  procedureCatalogItemId: string;
+  catalogItemName: string;
+  toothFdi?: string | null;
+  surface?: string | null;
+  phase?: string | null;
+  quantity: number;
+  unitPriceSnapshot: number;
+  totalAmount: number;
+  notes?: string | null;
+}
+
+export interface TreatmentPlanDto {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  sourceEncounterId: string;
+  status: TreatmentPlanStatus;
+  version: number;
+  approvedAtUtc?: string | null;
+  estimateTotal: number;
+  items: TreatmentPlanItemDto[];
+  createdAtUtc: string;
+  updatedAtUtc?: string | null;
+}
+
+export interface CreateCatalogItemRequest {
+  code: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  defaultPrice: number;
+  estimatedDurationMinutes: number;
+}
+
+export interface UpdateCatalogItemRequest {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  defaultPrice: number;
+  estimatedDurationMinutes: number;
+}
+
+export interface AddPlanItemRequest {
+  catalogItemId: string;
+  toothFdi?: string | null;
+  surface?: string | null;
+  phase?: string | null;
+  quantity: number;
+  notes?: string | null;
+}
