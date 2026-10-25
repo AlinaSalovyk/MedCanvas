@@ -247,6 +247,9 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("AttendingUserId")
                         .HasColumnType("uuid");
 
@@ -279,6 +282,8 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("AttendingUserId");
 
@@ -670,6 +675,11 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MedCanvas.Domain.Entities.DentalEncounter", b =>
                 {
+                    b.HasOne("MedCanvas.Domain.Entities.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MedCanvas.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("AttendingUserId")
