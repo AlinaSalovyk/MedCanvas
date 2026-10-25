@@ -77,6 +77,7 @@ public sealed class CreatePatientCommandHandler : IRequestHandler<CreatePatientC
             patient.ExternalMedicalRecordNumber,
             patient.MedicalAlerts,
             patient.IsActive,
+            patient.ConcurrencyVersion,
             patient.CreatedAtUtc,
             patient.UpdatedAtUtc);
     }

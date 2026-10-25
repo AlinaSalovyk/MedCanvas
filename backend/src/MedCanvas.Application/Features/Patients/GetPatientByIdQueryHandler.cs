@@ -46,6 +46,7 @@ public sealed class GetPatientByIdQueryHandler : IRequestHandler<GetPatientByIdQ
             patient.ExternalMedicalRecordNumber,
             patient.MedicalAlerts,
             patient.IsActive,
+            patient.ConcurrencyVersion,
             patient.CreatedAtUtc,
             patient.UpdatedAtUtc);
     }

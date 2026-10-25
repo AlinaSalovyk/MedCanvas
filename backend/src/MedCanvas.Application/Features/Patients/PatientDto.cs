@@ -13,5 +13,6 @@ public sealed record PatientDto(
     string? ExternalMedicalRecordNumber,
     string? MedicalAlerts,
     bool IsActive,
+    int ConcurrencyVersion,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc);
