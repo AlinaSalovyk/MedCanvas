@@ -92,6 +92,7 @@ public sealed class TreatmentPlanItemConfiguration : IEntityTypeConfiguration<Tr
         builder.Property(i => i.UnitPriceSnapshot).IsRequired().HasPrecision(12, 2);
         builder.Property(i => i.TotalAmount).IsRequired().HasPrecision(12, 2);
         builder.Property(i => i.Notes).HasMaxLength(500);
+        builder.Property(i => i.ItemStatus).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(i => i.CreatedAtUtc).IsRequired();
         builder.Property(i => i.UpdatedAtUtc).IsRequired();
 

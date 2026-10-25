@@ -25,6 +25,7 @@ public class MedCanvasDbContext : DbContext, IMedCanvasDbContext
     public DbSet<ProcedureCatalogItem> ProcedureCatalogItems => Set<ProcedureCatalogItem>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentPlanItem> TreatmentPlanItems => Set<TreatmentPlanItem>();
+    public DbSet<PerformedProcedure> PerformedProcedures => Set<PerformedProcedure>();
 
     public MedCanvasDbContext(DbContextOptions<MedCanvasDbContext> options)
         : base(options)
