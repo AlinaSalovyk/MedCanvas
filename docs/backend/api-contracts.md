@@ -78,6 +78,35 @@ All patient operations are scoped to the authenticated caller's active `clinicId
 
 ---
 
+### 2.2b Scheduling (M03)
+All scheduling operations are scoped to the caller's active clinic with DB-verified roles.
+
+| Method | Route | Description | Auth |
+|---|---|---|---|
+| GET | /api/v1/appointments?fromUtc&toUtc&clinicianId&chairId&status | Calendar window (max 62 days, UTC bounds), ordered by start | Any member |
+| POST | /api/v1/appointments | Book a slot (validates patient/clinician/chair/availability/overlap); 201 + ETag; slot conflicts 409 | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/confirm | Scheduled -> Confirmed | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/arrive | Confirmed -> Arrived | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/complete | Arrived/InProgress -> Completed | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/no-show | Scheduled/Confirmed -> NoShow | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/cancel | Cancel with required reason (slot released) | Admin/Clinician/Assistant |
+| POST | /api/v1/appointments/{id}/reschedule | Move time/chair under strong If-Match (428/412); Scheduled/Confirmed only | Admin/Clinician/Assistant |
+| GET / POST | /api/v1/chairs | List chairs / create (duplicate name 409) | Read: any member; write: ClinicAdmin |
+| PUT | /api/v1/chairs/{id}/name | Rename chair | ClinicAdmin |
+| POST | /api/v1/chairs/{id}/deactivate or /activate | Toggle chair availability | ClinicAdmin |
+| GET | /api/v1/availability/{clinicianUserId} | Weekly template + dated exceptions | Any member |
+| PUT | /api/v1/availability/{clinicianUserId} | Replace weekly template (windows + breaks) | Admin or the clinician themself |
+| POST | /api/v1/availability/{clinicianUserId}/exceptions | Add dated exception (day off / extra day; duplicate 409) | Admin or the clinician themself |
+| DELETE | /api/v1/availability/exceptions/{id} | Remove a dated exception | Admin or the clinician themself |
+
+Overlap prevention is a database guarantee: PostgreSQL EXCLUDE constraints
+(btree_gist on tstzrange) per (clinic, clinician) and per (clinic, chair) over
+active statuses — racing bookings fail closed with 409. Audited actions:
+APPOINTMENT_CREATED/CONFIRMED/ARRIVED/COMPLETED/CANCELLED/NO_SHOW/RESCHEDULED,
+CHAIR_CREATED/ACTIVATED/DEACTIVATED, AVAILABILITY_UPDATED.
+
+---
+
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|
