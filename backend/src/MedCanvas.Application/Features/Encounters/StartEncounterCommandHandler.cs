@@ -3,6 +3,7 @@ using MedCanvas.Application.Common.Interfaces;
 using MedCanvas.Domain.Entities;
 using MedCanvas.Domain.Exceptions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace MedCanvas.Application.Features.Encounters;
 
@@ -53,13 +54,39 @@ public sealed class StartEncounterCommandHandler : IRequestHandler<StartEncounte
         var now = _dateTimeProvider.UtcNow;
         var encounterDate = request.EncounterDateUtc ?? now;
 
+        // FR-301: an encounter may be anchored to a calendar appointment, but the link is
+        // validated — the appointment must belong to this clinic, this patient, and be in
+        // an active pre-encounter state. Cross-patient appointment links are rejected.
+        if (request.AppointmentId.HasValue)
+        {
+            var appointment = await _dbContext.Appointments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == request.AppointmentId.Value && a.ClinicId == clinicId, cancellationToken);
+
+            if (appointment == null)
+            {
+                throw new NotFoundException(nameof(Appointment), request.AppointmentId.Value);
+            }
+
+            if (appointment.PatientId != patient.Id)
+            {
+                throw new DomainException("The referenced appointment belongs to a different patient.");
+            }
+
+            if (appointment.Status is not (Domain.Enums.AppointmentStatus.Scheduled or Domain.Enums.AppointmentStatus.Confirmed or Domain.Enums.AppointmentStatus.Arrived))
+            {
+                throw new DomainException($"Appointment in status '{appointment.Status}' cannot be started as an encounter.");
+            }
+        }
+
         var encounter = DentalEncounter.Start(
             clinicId,
             patient.Id,
             userId,
             encounterDate,
             request.ChiefComplaint,
-            now);
+            now,
+            request.AppointmentId);
 
         _encounterRepository.Add(encounter);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -73,6 +100,7 @@ public sealed class StartEncounterCommandHandler : IRequestHandler<StartEncounte
             encounter.ChiefComplaint,
             encounter.ClinicalNotes,
             encounter.Status.ToString(),
+            encounter.AppointmentId,
             encounter.CreatedAtUtc,
             encounter.UpdatedAtUtc);
     }

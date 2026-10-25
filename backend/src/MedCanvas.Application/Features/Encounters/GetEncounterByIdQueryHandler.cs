@@ -42,6 +42,7 @@ public sealed class GetEncounterByIdQueryHandler : IRequestHandler<GetEncounterB
             encounter.ChiefComplaint,
             encounter.ClinicalNotes,
             encounter.Status.ToString(),
+            encounter.AppointmentId,
             encounter.CreatedAtUtc,
             encounter.UpdatedAtUtc);
     }

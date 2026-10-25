@@ -16,7 +16,7 @@
  *     flushes pending edits on pagehide.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { MedCanvasApiClient } from "../../api/client";
+import { ConcurrencyConflictError, MedCanvasApiClient } from "../../api/client";
 
 let mockStateListener: (() => void) | null = null;
 const mockGetStatusChart = vi.fn(() => ({ version: "2.22", teeth: {} }));
@@ -402,5 +402,51 @@ describe("OdontogramSyncBridge M00 — unload protection for unsaved edits", () 
 
     expect(event.defaultPrevented).toBe(false);
     expect(saveSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("OdontogramSyncBridge M04 — conflict resolution", () => {
+  let client: MedCanvasApiClient;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockImportStatus.mockReset();
+    mockGetStatusChart.mockReset();
+    mockGetStatusChart.mockReturnValue({ version: "2.22", teeth: {} });
+    mockStateListener = null;
+    client = new MedCanvasApiClient({ baseUrl: "http://localhost:5000/api/v1" });
+  });
+
+  it("adopts the server copy on explicit resolution and resumes autosave", async () => {
+    const fresh = dtoFor("enc-1", { version: "2.22", teeth: { "11": { toothSelection: "implant" } } }, 7);
+    vi.spyOn(client, "getOdontogramByEncounter")
+      // conflict fresh-copy fetch
+      .mockResolvedValueOnce({ odontogram: fresh, etag: '"7"' })
+      // resolve fetch
+      .mockResolvedValueOnce({ odontogram: fresh, etag: '"7"' });
+
+    const bridge = newBridge({ client, encounterId: "enc-1" });
+    bridge.startAutoSync();
+    mockStateListener?.();
+
+    // Enter conflict
+    vi.spyOn(client, "saveOdontogram").mockRejectedValueOnce(new ConcurrencyConflictError("stale"));
+    await expect(bridge.save()).rejects.toThrow(ConcurrencyConflictError);
+    expect(bridge.getStatus()).toBe("conflict");
+    expect(bridge.hasUnsavedChanges()).toBe(true);
+
+    // Explicit resolution adopts the server copy
+    mockImportStatus.mockImplementationOnce(() => {});
+    await bridge.resolveConflictWithServerCopy();
+
+    expect(bridge.getStatus()).toBe("saved");
+    expect(bridge.getETag()).toBe('"7"');
+    expect(mockImportStatus).toHaveBeenCalledWith(fresh.snapshotJson ? JSON.parse(fresh.snapshotJson) : expect.anything());
+    expect(mockStateListener).not.toBeNull(); // autosave resumed
+  });
+
+  it("refuses resolution outside conflict state", async () => {
+    const bridge = newBridge({ client, encounterId: "enc-1" });
+    await expect(bridge.resolveConflictWithServerCopy()).rejects.toThrow("requires an active conflict state");
   });
 });

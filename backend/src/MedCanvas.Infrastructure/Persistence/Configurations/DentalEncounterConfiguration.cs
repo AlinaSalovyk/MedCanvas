@@ -41,6 +41,8 @@ public sealed class DentalEncounterConfiguration : IEntityTypeConfiguration<Dent
         builder.Property(e => e.UpdatedAtUtc)
             .IsRequired();
 
+        builder.Property(e => e.AppointmentId);
+
         builder.HasOne<Clinic>()
             .WithMany()
             .HasForeignKey(e => e.ClinicId)
@@ -55,6 +57,13 @@ public sealed class DentalEncounterConfiguration : IEntityTypeConfiguration<Dent
             .WithMany()
             .HasForeignKey(e => e.AttendingUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // FR-301: appointment-encounter linkage. The appointment keeps its history when
+        // the encounter is hard-removed (never in MVP flows) — SetNull, not Cascade.
+        builder.HasOne<Appointment>()
+            .WithMany()
+            .HasForeignKey(e => e.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(e => new { e.PatientId, e.EncounterDateUtc });
         builder.HasIndex(e => new { e.ClinicId, e.EncounterDateUtc });

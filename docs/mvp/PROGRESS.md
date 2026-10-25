@@ -11,8 +11,9 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
 | M01 | TESTING | Implementation complete (31 commits): auth rework, onboarding, membership mgmt, settings, rate limiting, workspace UI; all gates green locally; see `M01-report.md` |
 | M02 | **MERGED** | PR #5 squash-merged as `a953ac9` after CI green on HEAD `5450de5` (`CI` 8m0s ✓, `Backend CI` 1m14s ✓) + self-review. Report: `M02-report.md` |
-| M03 | TESTING | All gates green locally (backend 429/429, Vitest 2673/2-skip, Playwright 17/17); PR follows; see `M03-report.md` |
-| M04–M09 | NOT_STARTED | — |
+| M03 | **MERGED** | PR #6 squash-merged as `7d309b9` after CI green on HEAD `af4ca7e` (`CI` 6m3s ✓, `Backend CI` 1m25s ✓) + self-review. Report: `M03-report.md` |
+| M04 | TESTING | All gates green locally (backend 434/434, Vitest 2677/2-skip, Playwright 17/17, lint 0 errors); PR follows; see `M04-report.md` |
+| M05–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
 
@@ -35,8 +36,8 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | `ac3be8f` | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50` | **MERGED** | `M00-report.md` |
 | M01 | `feat/mvp-workspace-identity` | `2b59f50` | `981db68` | [#4](https://github.com/AlinaSalovyk/MedCanvas/pull/4) | `c07182a` | **MERGED** | `M01-report.md` |
 | M02 | `feat/mvp-patients` | `c07182a` | `5450de5` | [#5](https://github.com/AlinaSalovyk/MedCanvas/pull/5) | `a953ac9` | **MERGED** | `M02-report.md` |
-| M03 | `feat/mvp-scheduling` | `a953ac9` | see PR | — | — | TESTING | `M03-report.md` |
-| M04 | `feat/mvp-clinical-workspace` | — | — | — | — | NOT_STARTED | — |
+| M03 | `feat/mvp-scheduling` | `a953ac9` | `af4ca7e` | [#6](https://github.com/AlinaSalovyk/MedCanvas/pull/6) | `7d309b9` | **MERGED** | `M03-report.md` |
+| M04 | `feat/mvp-clinical-workspace` | `7d309b9` | see PR | — | — | TESTING | `M04-report.md` |
 | M05 | `feat/mvp-treatment-planning` | — | — | — | — | NOT_STARTED | — |
 | M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
 | M07 | `feat/mvp-demo-billing` | — | — | — | — | NOT_STARTED | — |
@@ -53,7 +54,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M03 implementation complete on `feat/mvp-scheduling`: DB-level overlap exclusion constraints (concurrent double-book race tested), availability gating, lifecycle state machine, calendar UI. Backend 429/429; Vitest 2673/2-skip (clean re-run after two load-flaked runs); Playwright 17/17; lint clean. Pushing for PR.
+M04 implementation complete on `feat/mvp-clinical-workspace`: appointment-encounter linkage, odontogram write sealing after completion, encounter workspace hosting the real engine with the hardened bridge + conflict resolution. Backend 434/434; Vitest 2677/2-skip; Playwright 17/17. Pushing for PR.
 
 ## Known blockers
 

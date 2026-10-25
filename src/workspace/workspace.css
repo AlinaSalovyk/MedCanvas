@@ -539,3 +539,37 @@
   background: #eceff3;
   color: #5a6779;
 }
+
+/* --- encounter workspace (M04) --- */
+
+.ws-encounter-engine {
+  background: #ffffff;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  margin-top: 1rem;
+  min-height: 720px;
+}
+
+.ws-sync-chip {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid #c4cfdc;
+  background: #f0f3f7;
+  color: #46566b;
+}
+
+.ws-sync-saved { background: #e5f4ea; border-color: #9ed2ae; color: #1c7a3d; }
+.ws-sync-saving { background: #e7f0fb; border-color: #a9c8ea; color: #2c6fb5; }
+.ws-sync-error { background: #fdecea; border-color: #f0b3ad; color: #b3261e; }
+.ws-sync-conflict { background: #fff4e0; border-color: #e8c98a; color: #8a4b00; }
+.ws-sync-recovery { background: #f3e8fd; border-color: #cdb3ea; color: #6a1b9a; }
+
+.ws-finished-note {
+  background: #eceff3;
+  border-color: #c4cfdc;
+  color: #46566b;
+  font-weight: 600;
+}

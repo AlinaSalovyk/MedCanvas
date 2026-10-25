@@ -8,17 +8,20 @@ namespace MedCanvas.Application.Features.Odontograms;
 public sealed class FinalizeOdontogramCommandHandler : IRequestHandler<FinalizeOdontogramCommand, OdontogramResponseDto>
 {
     private readonly IOdontogramRepository _odontogramRepository;
+    private readonly IEncounterRepository _encounterRepository;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IMedCanvasDbContext _dbContext;
     private readonly IDateTimeProvider _dateTimeProvider;
 
     public FinalizeOdontogramCommandHandler(
         IOdontogramRepository odontogramRepository,
+        IEncounterRepository encounterRepository,
         ICurrentUserContext currentUserContext,
         IMedCanvasDbContext dbContext,
         IDateTimeProvider dateTimeProvider)
     {
         _odontogramRepository = odontogramRepository;
+        _encounterRepository = encounterRepository;
         _currentUserContext = currentUserContext;
         _dbContext = dbContext;
         _dateTimeProvider = dateTimeProvider;
@@ -33,6 +36,20 @@ public sealed class FinalizeOdontogramCommandHandler : IRequestHandler<FinalizeO
 
         var clinicId = _currentUserContext.ClinicId.Value;
         var userId = _currentUserContext.UserId.Value;
+
+        // Finalization seals an open encounter's chart; a completed or cancelled
+        // encounter can no longer finalize (FR-306).
+        var encounter = await _encounterRepository.GetByIdAsync(request.EncounterId, clinicId, cancellationToken);
+        if (encounter == null)
+        {
+            throw new NotFoundException(nameof(DentalEncounter), request.EncounterId);
+        }
+
+        if (encounter.Status != Domain.Enums.EncounterStatus.InProgress)
+        {
+            throw new Domain.Exceptions.DomainException(
+                $"Encounter is '{encounter.Status}'; its odontogram can no longer be finalized.");
+        }
 
         var record = await _odontogramRepository.GetByEncounterIdAsync(request.EncounterId, clinicId, cancellationToken);
         if (record == null)

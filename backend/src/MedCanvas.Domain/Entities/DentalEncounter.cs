@@ -16,6 +16,7 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
     public string? ChiefComplaint { get; private set; }
     public string? ClinicalNotes { get; private set; }
     public EncounterStatus Status { get; private set; }
+    public Guid? AppointmentId { get; private set; }
 
     private DentalEncounter()
     {
@@ -28,6 +29,7 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
         Guid attendingUserId,
         DateTime encounterDateUtc,
         string? chiefComplaint,
+        Guid? appointmentId,
         DateTime createdAtUtc)
         : base(id, createdAtUtc)
     {
@@ -46,11 +48,17 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
             throw new ArgumentException("Attending user ID cannot be empty GUID.", nameof(attendingUserId));
         }
 
+        if (appointmentId == Guid.Empty)
+        {
+            throw new ArgumentException("Appointment ID cannot be empty GUID when provided.", nameof(appointmentId));
+        }
+
         ClinicId = clinicId;
         PatientId = patientId;
         AttendingUserId = attendingUserId;
         EncounterDateUtc = encounterDateUtc;
         ChiefComplaint = chiefComplaint?.Trim();
+        AppointmentId = appointmentId;
         Status = EncounterStatus.InProgress;
     }
 
@@ -60,7 +68,8 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
         Guid attendingUserId,
         DateTime encounterDateUtc,
         string? chiefComplaint,
-        DateTime utcNow)
+        DateTime utcNow,
+        Guid? appointmentId = null)
     {
         return new DentalEncounter(
             Guid.NewGuid(),
@@ -69,6 +78,7 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
             attendingUserId,
             encounterDateUtc,
             chiefComplaint,
+            appointmentId,
             utcNow);
     }
 
@@ -79,7 +89,8 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
         Guid attendingUserId,
         DateTime encounterDateUtc,
         string? chiefComplaint,
-        DateTime createdAtUtc)
+        DateTime createdAtUtc,
+        Guid? appointmentId = null)
     {
         return new DentalEncounter(
             id,
@@ -88,6 +99,7 @@ public sealed class DentalEncounter : BaseEntity, IAggregateRoot
             attendingUserId,
             encounterDateUtc,
             chiefComplaint,
+            appointmentId,
             createdAtUtc);
     }
 

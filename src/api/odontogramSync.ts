@@ -112,6 +112,41 @@ export class OdontogramSyncBridge {
   // Unload guard (M00): warn before leaving with unsaved edits + best-effort flush
   private unloadHandler: ((event: Event) => void) | null = null;
 
+  /**
+   * Explicitly resolve an active concurrency conflict by adopting the server copy
+   * (M04): local unsaved edits ARE discarded — the caller must have obtained the
+   * user's confirmation. Refuses outside the conflict state, refuses while locked.
+   * Reloads the server snapshot through the guarded load path and resumes autosave.
+   */
+  public async resolveConflictWithServerCopy(): Promise<void> {
+    if (this.isDisposed) {
+      throw new Error("OdontogramSyncBridge is disposed.");
+    }
+    if (this.isRecoveryRequired || this.currentStatus === "recovery-required") {
+      throw new Error("Cannot resolve conflict: bridge is locked in recovery-required state.");
+    }
+    if (this.currentStatus !== "conflict") {
+      throw new Error("resolveConflictWithServerCopy requires an active conflict state.");
+    }
+
+    // Disarm any pending save work and account the local edits as discarded.
+    this.generation++;
+    if (this.saveTimeout !== null) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    this.localRevision = 0;
+    this.savedRevision = 0;
+    this.hasPendingEdits = false;
+    this.pendingBatchPromise = null;
+
+    // load() re-validates identity, structure, ETag, hydrates with rollback safety.
+    await this.load();
+    if (this.autoSave && !this.unsubscribeListener) {
+      this.startAutoSync();
+    }
+  }
+
   constructor(options: SyncOptions) {
     this.client = options.client;
     this.encounterId = options.encounterId;

@@ -49,6 +49,7 @@ public sealed class GetPatientEncountersQueryHandler : IRequestHandler<GetPatien
                 e.ChiefComplaint,
                 e.ClinicalNotes,
                 e.Status.ToString(),
+                e.AppointmentId,
                 e.CreatedAtUtc,
                 e.UpdatedAtUtc))
             .ToList();
