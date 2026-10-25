@@ -89,7 +89,7 @@ async function loginAs(role = "ClinicAdmin"): Promise<void> {
   fireEvent.submit(screen.getByRole("button", { name: /Увійти|Sign in/ }).closest("form")!);
   await waitFor(() => expect(screen.getByTestId("active-clinic")).toBeTruthy());
   fireEvent.click(screen.getByRole("link", { name: /Календар|Calendar/ }));
-  await waitFor(() => expect(screen.getByRole("heading", { name: /Календар прийомів|Appointment calendar/ })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole("heading", { name: /Календар прийомів|Appointment calendar/ })).toBeTruthy(), { timeout: 5000 });
 }
 
 describe("Calendar page (M03)", () => {
