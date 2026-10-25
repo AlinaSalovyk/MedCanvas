@@ -313,6 +313,12 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClinicId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
