@@ -1,6 +1,5 @@
 import type {
   AppointmentDto,
-  AppointmentStatus,
   ChairDto,
   AvailabilityTemplateDto,
   CalendarWindowOptions,

@@ -290,7 +290,7 @@ function BookingDialog({
   chairs: Array<{ id: string; name: string }>;
   defaultDay: Date;
 }): ReactNode {
-  const { client, session, t } = useAuth();
+  const { client, t } = useAuth();
   const queryClient = useQueryClient();
 
   const [patientSearch, setPatientSearch] = useState("");

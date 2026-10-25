@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AvailabilityWindowDto } from "../../api/types";
 import { useAuth } from "../AuthContext";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
