@@ -10,7 +10,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
 | M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
 | M01 | TESTING | Implementation complete (31 commits): auth rework, onboarding, membership mgmt, settings, rate limiting, workspace UI; all gates green locally; see `M01-report.md` |
-| M02 | IN_PROGRESS | Branch `feat/mvp-patients` from `c07182a` |
+| M02 | TESTING | Backend (390/390) + frontend gates green locally; PR follows; see `M02-report.md` |
 | M03–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
@@ -33,7 +33,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 |---|---|---|---|---|---|---|---|
 | M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | `ac3be8f` | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50` | **MERGED** | `M00-report.md` |
 | M01 | `feat/mvp-workspace-identity` | `2b59f50` | `981db68` | [#4](https://github.com/AlinaSalovyk/MedCanvas/pull/4) | `c07182a` | **MERGED** | `M01-report.md` |
-| M02 | `feat/mvp-patients` | `c07182a` | — | — | — | IN_PROGRESS | — |
+| M02 | `feat/mvp-patients` | `c07182a` | see PR | — | — | TESTING | `M02-report.md` |
 | M03 | `feat/mvp-scheduling` | — | — | — | — | NOT_STARTED | — |
 | M04 | `feat/mvp-clinical-workspace` | — | — | — | — | NOT_STARTED | — |
 | M05 | `feat/mvp-treatment-planning` | — | — | — | — | NOT_STARTED | — |
@@ -52,7 +52,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M01 merged to `main` (`c07182a`) after both CI workflows green on PR HEAD `981db68`; local `main` synchronized and verified to contain the workspace tree. M02 branch `feat/mvp-patients` created from `c07182a`.
+M02 implementation complete on `feat/mvp-patients`: backend 390/390 (+10), Vitest 2669/2-skip (+6), Playwright 16/16 (+1), tsc/lint/build/dotnet format green. Pushing for PR.
 
 ## Known blockers
 
