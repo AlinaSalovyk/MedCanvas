@@ -22,6 +22,9 @@ public class MedCanvasDbContext : DbContext, IMedCanvasDbContext
     public DbSet<ProviderAvailability> ProviderAvailabilities => Set<ProviderAvailability>();
     public DbSet<ProviderAvailabilityBreak> ProviderAvailabilityBreaks => Set<ProviderAvailabilityBreak>();
     public DbSet<ProviderAvailabilityException> ProviderAvailabilityExceptions => Set<ProviderAvailabilityException>();
+    public DbSet<ProcedureCatalogItem> ProcedureCatalogItems => Set<ProcedureCatalogItem>();
+    public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
+    public DbSet<TreatmentPlanItem> TreatmentPlanItems => Set<TreatmentPlanItem>();
 
     public MedCanvasDbContext(DbContextOptions<MedCanvasDbContext> options)
         : base(options)

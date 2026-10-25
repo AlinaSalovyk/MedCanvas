@@ -21,6 +21,9 @@ public interface IMedCanvasDbContext
     DbSet<ProviderAvailability> ProviderAvailabilities { get; }
     DbSet<ProviderAvailabilityBreak> ProviderAvailabilityBreaks { get; }
     DbSet<ProviderAvailabilityException> ProviderAvailabilityExceptions { get; }
+    DbSet<ProcedureCatalogItem> ProcedureCatalogItems { get; }
+    DbSet<TreatmentPlan> TreatmentPlans { get; }
+    DbSet<TreatmentPlanItem> TreatmentPlanItems { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,9 @@
 import type {
+  CatalogItemDto,
+  CreateCatalogItemRequest,
+  UpdateCatalogItemRequest,
+  TreatmentPlanDto,
+  AddPlanItemRequest,
   AppointmentDto,
   ChairDto,
   AvailabilityTemplateDto,
@@ -415,6 +420,75 @@ export class MedCanvasApiClient {
 
   public async removeAvailabilityException(exceptionId: string): Promise<void> {
     await this.request<void>(`/availability/exceptions/${exceptionId}`, { method: "DELETE" });
+  }
+
+
+  // --- Treatment Planning Endpoints (M05) ---
+
+  public async getCatalogItems(): Promise<CatalogItemDto[]> {
+    const res = await this.request<CatalogItemDto[]>("/catalog");
+    return res.data;
+  }
+
+  public async createCatalogItem(req: CreateCatalogItemRequest): Promise<CatalogItemDto> {
+    const res = await this.request<CatalogItemDto>("/catalog", { method: "POST", body: JSON.stringify(req) });
+    return res.data;
+  }
+
+  public async updateCatalogItem(id: string, req: UpdateCatalogItemRequest): Promise<CatalogItemDto> {
+    const res = await this.request<CatalogItemDto>(`/catalog/${id}`, { method: "PUT", body: JSON.stringify({ ...req, itemId: id }) });
+    return res.data;
+  }
+
+  public async setCatalogItemActive(id: string, active: boolean): Promise<CatalogItemDto> {
+    const res = await this.request<CatalogItemDto>(`/catalog/${id}/${active ? "activate" : "deactivate"}`, { method: "POST" });
+    return res.data;
+  }
+
+  public async getTreatmentPlan(planId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}`);
+    return res.data;
+  }
+
+  public async getPatientTreatmentPlans(patientId: string): Promise<TreatmentPlanDto[]> {
+    const res = await this.request<TreatmentPlanDto[]>(`/treatment-plans/by-patient/${patientId}`);
+    return res.data;
+  }
+
+  public async createTreatmentPlan(patientId: string, sourceEncounterId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>("/treatment-plans", {
+      method: "POST",
+      body: JSON.stringify({ patientId, sourceEncounterId }),
+    });
+    return res.data;
+  }
+
+  public async addPlanItem(planId: string, req: AddPlanItemRequest): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/items`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    return res.data;
+  }
+
+  public async removePlanItem(planId: string, itemId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/items/${itemId}`, { method: "DELETE" });
+    return res.data;
+  }
+
+  public async submitTreatmentPlan(planId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/submit`, { method: "POST" });
+    return res.data;
+  }
+
+  public async approveTreatmentPlan(planId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/approve`, { method: "POST" });
+    return res.data;
+  }
+
+  public async cancelTreatmentPlan(planId: string): Promise<TreatmentPlanDto> {
+    const res = await this.request<TreatmentPlanDto>(`/treatment-plans/${planId}/cancel`, { method: "POST" });
+    return res.data;
   }
 
   // --- Encounter Endpoints ---

@@ -573,3 +573,15 @@
   color: #46566b;
   font-weight: 600;
 }
+
+/* --- treatment planning (M05) --- */
+
+.ws-plan-total {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #10314f;
+}
+
+.ws-inline-form {
+  margin-top: 0.75rem;
+}

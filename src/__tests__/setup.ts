@@ -32,3 +32,9 @@ if (!window.matchMedia) {
 import { LANGUAGES } from "../i18n/languages";
 import { loadLanguage } from "../i18n/loader";
 await Promise.all(LANGUAGES.map((lang) => loadLanguage(lang)));
+
+// Full-suite runs on loaded machines can push RTL's default 1s waitFor past the
+// limit even for healthy UI. 5s keeps the assertions identical, only the wait
+// budget honest under load.
+import { configure } from "@testing-library/dom";
+configure({ asyncUtilTimeout: 5000 });

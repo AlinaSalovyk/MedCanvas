@@ -107,6 +107,29 @@ CHAIR_CREATED/ACTIVATED/DEACTIVATED, AVAILABILITY_UPDATED.
 
 ---
 
+### 2.2c Treatment Planning (M05)
+Clinic price list and structured treatment plans. All money decimal(12,2) UAH.
+
+| Method | Route | Description | Auth |
+|---|---|---|---|
+| GET | /api/v1/catalog | List the clinic's price list | Any member |
+| POST | /api/v1/catalog | Create item (unique code per clinic; duplicate 409) | ClinicAdmin |
+| PUT | /api/v1/catalog/{id} | Update name/price/duration (code immutable) | ClinicAdmin |
+| POST | /api/v1/catalog/{id}/deactivate or /activate | Toggle item availability | ClinicAdmin |
+| GET | /api/v1/treatment-plans/{id} | Plan with items and server-computed estimate | Any member |
+| GET | /api/v1/treatment-plans/by-patient/{patientId} | Patient's plans (clinic-scoped) | Any member |
+| POST | /api/v1/treatment-plans | Create Draft plan from an InProgress encounter (cross-patient 409) | Admin/Clinician |
+| POST | /api/v1/treatment-plans/{id}/items | Add item (price snapshotted; foreign-catalog 404; Draft only) | Admin/Clinician |
+| DELETE | /api/v1/treatment-plans/{id}/items/{itemId} | Remove item (Draft only) | Admin/Clinician |
+| POST | /api/v1/treatment-plans/{id}/submit | Draft -> Proposed (empty plan 400) | Admin/Clinician |
+| POST | /api/v1/treatment-plans/{id}/approve | Proposed -> Approved (locks terms) | Admin/Clinician |
+| POST | /api/v1/treatment-plans/{id}/cancel | Cancel (non-terminal states) | Admin/Clinician |
+
+Price snapshots are immutable: catalog changes never alter approved or existing
+plan items (INV-007, FR-405).
+
+---
+
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|
