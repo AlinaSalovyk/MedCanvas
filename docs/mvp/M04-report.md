@@ -28,9 +28,9 @@ The clinician opens a patient from the calendar, starts an encounter, and charts
 | Suite | Result |
 |---|---|
 | Backend full | 434/434 (Domain 148 · Application 152 · Infrastructure 21 · API 113, +5 encounter-workspace: link success/cross-patient 400/cancelled 400/sealed writes incl. finalize/round-trip+revisions) |
-| Vitest | 2676+ passed / 2 skipped (+3 encounter page, +2 bridge resolution) |
-| Playwright | 17/17 (unchanged suite) |
-| tsc / lint / build / dotnet build / format | all green |
+| Vitest | 2677 passed / 2 skipped (+5: encounter page ×3, bridge conflict resolution ×2); one calendar test received a load-safe waitFor timeout after two full-run timeout flakes on a busy machine (passes consistently isolated and with the fix) |
+| Playwright | 17/17 |
+| tsc / lint / build / dotnet build / format | PASS / 0 errors / PASS / PASS / PASS |
 
 ## 5. Security & tenant isolation
 Encounter fetch/saves remain clinic-scoped; appointment linkage validates patient ownership (INV-002/003); sealing guards prevent back-dated edits of finished records (INV-004); no PHI in logs.
