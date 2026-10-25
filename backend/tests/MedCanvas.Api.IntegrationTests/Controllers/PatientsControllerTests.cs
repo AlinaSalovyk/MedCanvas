@@ -219,19 +219,88 @@ public class PatientsControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyn
             FirstName: "Maksym",
             LastName: "Bondarenko",
             Phone: "+380991112233",
-            MedicalAlerts: "Latex allergy");
+            MedicalAlerts: "Latex allergy",
+            ExpectedVersion: 1);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/patients/{patient.Id}")
+        {
+            Content = JsonContent.Create(updateCommand)
+        };
+        request.Headers.Add("If-Match", "\"1\"");
 
         // Act
-        var response = await client.PutAsJsonAsync($"/api/v1/patients/{patient.Id}", updateCommand);
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.ETag?.Tag.Should().Be("\"2\"");
         var updated = await response.Content.ReadFromJsonAsync<PatientDto>();
         updated.Should().NotBeNull();
         updated!.LastName.Should().Be("Bondarenko");
         updated.FullName.Should().Be("Maksym Bondarenko");
         updated.Phone.Should().Be("+380991112233");
         updated.MedicalAlerts.Should().Be("Latex allergy");
+        updated.ConcurrencyVersion.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_WithoutIfMatchHeader_Returns428PreconditionRequired()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Maksym", "Bondar", null, null, null, null, null, null, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/patients/{patient.Id}",
+            new UpdatePatientCommand(patient.Id, "Maksym", "Bondarenko"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.PreconditionRequired);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_WithStaleIfMatchVersion_Returns412PreconditionFailed()
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create("Smile Dental Clinic", "SMILE-01", now);
+        var user = User.Create("dr.dentist@smiledental.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+        var patient = Patient.Create(clinic.Id, "Maksym", "Bondar", null, null, null, null, null, null, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            db.Patients.Add(patient);
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/patients/{patient.Id}")
+        {
+            Content = JsonContent.Create(new UpdatePatientCommand(patient.Id, "Maksym", "Bondarenko", ExpectedVersion: 5))
+        };
+        request.Headers.Add("If-Match", "\"5\"");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed);
     }
 
     [Fact]
@@ -264,5 +333,200 @@ public class PatientsControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyn
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // ============================================================== M02 additions
+
+    private async Task<(Clinic Clinic, User User, HttpClient Client)> SeedClinicAsync(string identifier)
+    {
+        var now = DateTime.UtcNow;
+        var clinic = Clinic.Create($"Clinic {identifier}", identifier, now);
+        var user = User.Create($"doc-{identifier.ToLowerInvariant()}@example.com", "Dr. Dentist", "dummy_hash", now);
+        var membership = ClinicMembership.Create(clinic.Id, user.Id, MembershipRole.Clinician, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Clinics.Add(clinic);
+            db.Users.Add(user);
+            db.ClinicMemberships.Add(membership);
+            await db.SaveChangesAsync();
+        }
+
+        return (clinic, user, _factory.CreateAuthenticatedClient(user, clinic.Id, MembershipRole.Clinician));
+    }
+
+    [Fact]
+    public async Task ArchivePatient_RemovesFromDefaultList_KeepsHistory_Readable_AndBlocksNewEncounters()
+    {
+        var (clinic, user, client) = await SeedClinicAsync("ARCH-1");
+        var patient = Patient.Create(clinic.Id, "Olha", "Archived", null, null, null, null, null, null, DateTime.UtcNow);
+        var encounter = DentalEncounter.Start(clinic.Id, patient.Id, user.Id, DateTime.UtcNow, "Checkup", DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.Add(patient);
+            db.DentalEncounters.Add(encounter);
+            await db.SaveChangesAsync();
+        }
+
+        // Archive
+        var archive = await client.PostAsync($"/api/v1/patients/{patient.Id}/archive", content: null);
+        archive.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await archive.Content.ReadFromJsonAsync<PatientDto>())!.IsActive.Should().BeFalse();
+
+        // Default list excludes; includeArchived shows it
+        var defaultList = await client.GetFromJsonAsync<PagedResult<PatientDto>>("/api/v1/patients");
+        defaultList!.TotalCount.Should().Be(0);
+        var archivedList = await client.GetFromJsonAsync<PagedResult<PatientDto>>("/api/v1/patients?includeArchived=true");
+        archivedList!.TotalCount.Should().Be(1);
+
+        // Direct read and history stay available
+        var direct = await client.GetAsync($"/api/v1/patients/{patient.Id}");
+        direct.StatusCode.Should().Be(HttpStatusCode.OK);
+        var history = await client.GetAsync($"/api/v1/patients/{patient.Id}/encounters");
+        history.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // New encounters are rejected while archived (DomainException -> 400)
+        var start = await client.PostAsJsonAsync("/api/v1/encounters", new { patientId = patient.Id });
+        start.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task RestorePatient_ReturnsPatientToDefaultList()
+    {
+        var (clinic, _, client) = await SeedClinicAsync("ARCH-2");
+        var patient = Patient.Create(clinic.Id, "Ivan", "Restorable", null, null, null, null, null, null, DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.Add(patient);
+            await db.SaveChangesAsync();
+        }
+
+        await client.PostAsync($"/api/v1/patients/{patient.Id}/archive", content: null);
+        var restore = await client.PostAsync($"/api/v1/patients/{patient.Id}/restore", content: null);
+
+        restore.StatusCode.Should().Be(HttpStatusCode.OK);
+        var list = await client.GetFromJsonAsync<PagedResult<PatientDto>>("/api/v1/patients");
+        list!.TotalCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ArchivePatient_FromForeignClinic_Returns404()
+    {
+        var (_, _, clientA) = await SeedClinicAsync("ARCH-A");
+        var (clinicB, _, clientB) = await SeedClinicAsync("ARCH-B");
+        var patientB = Patient.Create(clinicB.Id, "Bo", "Foreign", null, null, null, null, null, null, DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.Add(patientB);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await clientA.PostAsync($"/api/v1/patients/{patientB.Id}/archive", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        // And the patient was NOT archived by the foreign attempt
+        var readB = await clientB.GetAsync($"/api/v1/patients/{patientB.Id}");
+        (await readB.Content.ReadFromJsonAsync<PatientDto>())!.IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ArchivePatient_AsViewer_Returns403()
+    {
+        var (clinic, _, _) = await SeedClinicAsync("ARCH-3");
+        var patient = Patient.Create(clinic.Id, "Vika", "Viewer", null, null, null, null, null, null, DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            var viewer = User.Create("viewer@arch3.example.com", "Viewer", "dummy_hash", DateTime.UtcNow);
+            db.Users.Add(viewer);
+            db.ClinicMemberships.Add(ClinicMembership.Create(clinic.Id, viewer.Id, MembershipRole.Viewer, DateTime.UtcNow));
+            db.Patients.Add(patient);
+            await db.SaveChangesAsync();
+
+            var viewerClient = _factory.CreateAuthenticatedClient(viewer, clinic.Id, MembershipRole.Viewer);
+            var response = await viewerClient.PostAsync($"/api/v1/patients/{patient.Id}/archive", content: null);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        }
+    }
+
+    [Fact]
+    public async Task GetPatientDuplicates_FindsMatchesByMrnAndByNameDob_WithinOwnClinicOnly()
+    {
+        var (clinic, _, client) = await SeedClinicAsync("DUP-1");
+        var (clinicB, _, clientB) = await SeedClinicAsync("DUP-2");
+        var dob = new DateOnly(1985, 7, 7);
+        var twinA = Patient.Create(clinic.Id, "Anna", "Twin", dob, null, null, null, "MRN-TWIN", null, DateTime.UtcNow);
+        var twinB = Patient.Create(clinicB.Id, "Anna", "Twin", dob, null, null, null, "MRN-TWIN", null, DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.AddRange(twinA, twinB);
+            await db.SaveChangesAsync();
+        }
+
+        // By MRN — only the same-clinic match is visible
+        var byMrn = await client.GetFromJsonAsync<List<PatientDto>>($"/api/v1/patients/duplicates?externalMedicalRecordNumber=MRN-TWIN");
+        byMrn!.Select(p => p.Id).Should().BeEquivalentTo(new[] { twinA.Id });
+
+        // By name + DOB
+        var byName = await client.GetFromJsonAsync<List<PatientDto>>($"/api/v1/patients/duplicates?firstName=Anna&lastName=Twin&dateOfBirth={dob:yyyy-MM-dd}");
+        byName!.Select(p => p.Id).Should().BeEquivalentTo(new[] { twinA.Id });
+
+        // Clinic B sees its own twin, not clinic A's
+        var fromB = await clientB.GetFromJsonAsync<List<PatientDto>>($"/api/v1/patients/duplicates?firstName=Anna&lastName=Twin&dateOfBirth={dob:yyyy-MM-dd}");
+        fromB!.Select(p => p.Id).Should().BeEquivalentTo(new[] { twinB.Id });
+
+        // No criteria -> no scan
+        var empty = await client.GetFromJsonAsync<List<PatientDto>>("/api/v1/patients/duplicates");
+        empty!.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetPatients_SortsByLastNameDescending_WhenRequested()
+    {
+        var (clinic, _, client) = await SeedClinicAsync("SORT-1");
+        var now = DateTime.UtcNow;
+        var p1 = Patient.Create(clinic.Id, "Aaa", "Zzz", null, null, null, null, null, null, now);
+        var p2 = Patient.Create(clinic.Id, "Bbb", "Aaa", null, null, null, null, null, null, now);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.AddRange(p1, p2);
+            await db.SaveChangesAsync();
+        }
+
+        var result = await client.GetFromJsonAsync<PagedResult<PatientDto>>("/api/v1/patients?sortBy=lastname&sortDescending=true");
+
+        result!.Items.Select(p => p.LastName).Should().ContainInOrder("Zzz", "Aaa");
+    }
+
+    [Fact]
+    public async Task GetPatientById_ReturnsETagHeader()
+    {
+        var (clinic, _, client) = await SeedClinicAsync("ETAG-1");
+        var patient = Patient.Create(clinic.Id, "Eta", "Gova", null, null, null, null, null, null, DateTime.UtcNow);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.Patients.Add(patient);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.GetAsync($"/api/v1/patients/{patient.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.ETag?.Tag.Should().Be("\"1\"");
     }
 }
