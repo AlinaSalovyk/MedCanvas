@@ -362,7 +362,6 @@ function BookingDialog({
         .catch(() => setPatients([]));
     }
     // applyPatients is stable per preset; the fetch must run once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetPatientId]);
 
   const book = useMutation({
