@@ -128,6 +128,12 @@ export function WorkspaceLayout(): ReactNode {
 
       <div className="ws-body">
         <nav className="ws-nav" aria-label={t("app.subtitle")}>
+          <NavLink
+            to="patients"
+            className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+          >
+            {t("nav.patients")}
+          </NavLink>
           <NavLink to="staff" className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}>
             {t("nav.staff")}
           </NavLink>
