@@ -153,6 +153,14 @@ export function WorkspaceLayout(): ReactNode {
           )}
           {session.role === "ClinicAdmin" && (
             <NavLink
+              to="catalog"
+              className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
+            >
+              {t("nav.catalog")}
+            </NavLink>
+          )}
+          {session.role === "ClinicAdmin" && (
+            <NavLink
               to="availability"
               className={({ isActive }) => (isActive ? "ws-nav-link ws-nav-active" : "ws-nav-link")}
             >

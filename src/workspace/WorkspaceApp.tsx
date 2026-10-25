@@ -7,6 +7,8 @@ import { StaffPage } from "./pages/StaffPage";
 import { ClinicSettingsPage } from "./pages/ClinicSettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { CalendarPage } from "./pages/CalendarPage";
+import { CatalogPage } from "./pages/CatalogPage";
+import { TreatmentPlansPage } from "./pages/TreatmentPlansPage";
 import { EncounterPage } from "./pages/EncounterPage";
 import { ChairsPage } from "./pages/ChairsPage";
 import { AvailabilityPage } from "./pages/AvailabilityPage";
@@ -50,6 +52,15 @@ export function WorkspaceApp(): ReactNode {
       >
         <Route index element={<Navigate to="staff" replace />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route
+          path="catalog"
+          element={
+            <RequireRole roles={["ClinicAdmin"]}>
+              <CatalogPage />
+            </RequireRole>
+          }
+        />
+        <Route path="patients/:patientId/plans" element={<TreatmentPlansPage />} />
         <Route path="encounters/:id" element={<EncounterPage />} />
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />

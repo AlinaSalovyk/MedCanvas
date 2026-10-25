@@ -61,6 +61,14 @@ export function PatientDetailPage(): ReactNode {
         {!patient.isActive && <span className="ws-badge ws-badge-archived">{t("patients.archived")}</span>}
       </div>
 
+      <div className="ws-page-header">
+        {patient.isActive && (
+          <Link to={`/patients/${patient.id}/plans`} className="ws-button">
+            {t("plans.open")}
+          </Link>
+        )}
+      </div>
+
       <div className="ws-detail-grid">
         <div className="ws-card">
           <h2>{t("patients.basicInfo")}</h2>
