@@ -13,8 +13,9 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 | M02 | **MERGED** | PR #5 squash-merged as `a953ac9` after CI green on HEAD `5450de5` (`CI` 8m0s ✓, `Backend CI` 1m14s ✓) + self-review. Report: `M02-report.md` |
 | M03 | **MERGED** | PR #6 squash-merged as `7d309b9` after CI green on HEAD `af4ca7e` (`CI` 6m3s ✓, `Backend CI` 1m25s ✓) + self-review. Report: `M03-report.md` |
 | M04 | **MERGED** | PR #7 squash-merged as `6b365ba` after CI green on HEAD `fbcdb9e` (`CI` 5m43s ✓, `Backend CI` 1m29s ✓) + self-review. Report: `M04-report.md` |
-| M05 | TESTING | All gates green locally (backend 460/460, Vitest 2680/2-skip with RTL load-timeout fix, Playwright 17/17, lint 0 errors); see `M05-report.md` |
-| M06–M09 | NOT_STARTED | — |
+| M05 | **MERGED** | PR #8 squash-merged as `5d6b0ad` after CI green on HEAD `7354690` (`CI` 8m1s ✓, `Backend CI` 1m28s ✓) + self-review. Report: `M05-report.md` |
+| M06 | IN_PROGRESS | Branch `feat/mvp-procedure-execution` from `5d6b0ad` |
+| M07–M09 | NOT_STARTED | — |
 
 ## Verified baseline (2026-10-24, `main` @ `f970f28`)
 
@@ -55,7 +56,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M05 complete on `feat/mvp-treatment-planning`: catalog + plans + server estimates + snapshot isolation; backend 460/460 (incl. cross-clinic catalog injection 404, snapshot isolation through real catalog edit); Vitest 2680/2-skip after global RTL timeout fix (root-caused load flake); Playwright 17/17. Pushing for PR.
+M05 merged to `main` (`5d6b0ad`) after both CI workflows green on PR HEAD `7354690`. M06 branch `feat/mvp-procedure-execution` created from `5d6b0ad`.
 
 ## Known blockers
 
