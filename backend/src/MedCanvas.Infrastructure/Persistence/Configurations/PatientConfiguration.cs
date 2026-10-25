@@ -41,6 +41,11 @@ public sealed class PatientConfiguration : IEntityTypeConfiguration<Patient>
         builder.Property(p => p.IsActive)
             .IsRequired();
 
+        builder.Property(p => p.ConcurrencyVersion)
+            .IsRequired()
+            .HasDefaultValue(1)
+            .IsConcurrencyToken();
+
         builder.Property(p => p.CreatedAtUtc)
             .IsRequired();
 

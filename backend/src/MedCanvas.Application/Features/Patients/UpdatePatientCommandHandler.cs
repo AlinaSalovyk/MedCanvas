@@ -54,6 +54,11 @@ public sealed class UpdatePatientCommandHandler : IRequestHandler<UpdatePatientC
             }
         }
 
+        if (!request.ExpectedVersion.HasValue)
+        {
+            throw new PreconditionRequiredException("Updating an existing patient requires an If-Match concurrency precondition.");
+        }
+
         var now = _dateTimeProvider.UtcNow;
         patient.UpdateDemographics(
             request.FirstName,
@@ -63,6 +68,7 @@ public sealed class UpdatePatientCommandHandler : IRequestHandler<UpdatePatientC
             request.Phone,
             request.Email,
             request.ExternalMedicalRecordNumber,
+            request.ExpectedVersion.Value,
             now);
 
         if (request.MedicalAlerts != patient.MedicalAlerts)
@@ -85,6 +91,7 @@ public sealed class UpdatePatientCommandHandler : IRequestHandler<UpdatePatientC
             patient.ExternalMedicalRecordNumber,
             patient.MedicalAlerts,
             patient.IsActive,
+            patient.ConcurrencyVersion,
             patient.CreatedAtUtc,
             patient.UpdatedAtUtc);
     }

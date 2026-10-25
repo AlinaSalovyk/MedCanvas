@@ -1,4 +1,5 @@
 using MedCanvas.Domain.Common;
+using MedCanvas.Domain.Exceptions;
 
 namespace MedCanvas.Domain.Entities;
 
@@ -17,6 +18,7 @@ public sealed class Patient : BaseEntity, IAggregateRoot
     public string? Email { get; private set; }
     public string? MedicalAlerts { get; private set; }
     public bool IsActive { get; private set; }
+    public int ConcurrencyVersion { get; private set; }
 
     public string FullName => $"{FirstName} {LastName}".Trim();
 
@@ -52,6 +54,7 @@ public sealed class Patient : BaseEntity, IAggregateRoot
         ExternalMedicalRecordNumber = externalMrn?.Trim();
         MedicalAlerts = medicalAlerts?.Trim();
         IsActive = true;
+        ConcurrencyVersion = 1;
     }
 
     public static Patient Create(
@@ -107,6 +110,10 @@ public sealed class Patient : BaseEntity, IAggregateRoot
             utcNow);
     }
 
+    /// <summary>
+    /// Update demographics and contacts under optimistic concurrency control:
+    /// the caller must supply the version it based the edit on.
+    /// </summary>
     public void UpdateDemographics(
         string firstName,
         string lastName,
@@ -115,14 +122,17 @@ public sealed class Patient : BaseEntity, IAggregateRoot
         string? phone,
         string? email,
         string? externalMrn,
+        int expectedVersion,
         DateTime utcNow)
     {
+        EnsureVersionMatches(expectedVersion);
         SetNames(firstName, lastName);
         DateOfBirth = dateOfBirth;
         Gender = gender?.Trim();
         Phone = phone?.Trim();
         SetEmail(email);
         ExternalMedicalRecordNumber = externalMrn?.Trim();
+        ConcurrencyVersion++;
         SetUpdatedTimestamp(utcNow);
     }
 
@@ -132,16 +142,25 @@ public sealed class Patient : BaseEntity, IAggregateRoot
         SetUpdatedTimestamp(utcNow);
     }
 
-    public void Deactivate(DateTime utcNow)
+    /// <summary>Archive the patient (soft state; clinical history is preserved).</summary>
+    public void Archive(DateTime utcNow)
     {
         IsActive = false;
         SetUpdatedTimestamp(utcNow);
     }
 
-    public void Activate(DateTime utcNow)
+    public void Restore(DateTime utcNow)
     {
         IsActive = true;
         SetUpdatedTimestamp(utcNow);
+    }
+
+    private void EnsureVersionMatches(int expectedVersion)
+    {
+        if (expectedVersion != ConcurrencyVersion)
+        {
+            throw new ConcurrencyConflictException(Id, expectedVersion, ConcurrencyVersion);
+        }
     }
 
     private void SetNames(string firstName, string lastName)

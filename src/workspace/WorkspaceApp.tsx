@@ -6,6 +6,8 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { StaffPage } from "./pages/StaffPage";
 import { ClinicSettingsPage } from "./pages/ClinicSettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { PatientsPage } from "./pages/PatientsPage";
+import { PatientDetailPage } from "./pages/PatientDetailPage";
 import type { ReactNode } from "react";
 
 function RequireAuth({ children }: { children: ReactNode }): ReactNode {
@@ -43,6 +45,8 @@ export function WorkspaceApp(): ReactNode {
         }
       >
         <Route index element={<Navigate to="staff" replace />} />
+        <Route path="patients" element={<PatientsPage />} />
+        <Route path="patients/:id" element={<PatientDetailPage />} />
         <Route
           path="staff"
           element={

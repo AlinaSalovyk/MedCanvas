@@ -1,4 +1,6 @@
 import type {
+  PatientListOptions,
+  PatientDuplicateHint,
   ClinicMemberDto,
   ClinicMembershipSummary,
   ClinicSettingsDto,
@@ -236,15 +238,34 @@ export class MedCanvasApiClient {
 
   // --- Patient Endpoints ---
 
-  public async getPatients(pageNumber = 1, pageSize = 20, searchTerm?: string): Promise<PagedResult<PatientDto>> {
+  public async getPatients(options: PatientListOptions = {}): Promise<PagedResult<PatientDto>> {
     const query = new URLSearchParams({
-      pageNumber: pageNumber.toString(),
-      pageSize: pageSize.toString(),
+      pageNumber: (options.pageNumber ?? 1).toString(),
+      pageSize: (options.pageSize ?? 20).toString(),
     });
-    if (searchTerm) {
-      query.set("searchTerm", searchTerm);
+    if (options.searchTerm) {
+      query.set("searchTerm", options.searchTerm);
+    }
+    if (options.sortBy) {
+      query.set("sortBy", options.sortBy);
+    }
+    if (options.sortDescending) {
+      query.set("sortDescending", "true");
+    }
+    if (options.includeArchived) {
+      query.set("includeArchived", "true");
     }
     const res = await this.request<PagedResult<PatientDto>>(`/patients?${query.toString()}`);
+    return res.data;
+  }
+
+  public async getPatientDuplicates(hint: PatientDuplicateHint): Promise<PatientDto[]> {
+    const query = new URLSearchParams();
+    if (hint.firstName) query.set("firstName", hint.firstName);
+    if (hint.lastName) query.set("lastName", hint.lastName);
+    if (hint.dateOfBirth) query.set("dateOfBirth", hint.dateOfBirth);
+    if (hint.externalMedicalRecordNumber) query.set("externalMedicalRecordNumber", hint.externalMedicalRecordNumber);
+    const res = await this.request<PatientDto[]>(`/patients/duplicates?${query.toString()}`);
     return res.data;
   }
 
@@ -261,11 +282,30 @@ export class MedCanvasApiClient {
     return res.data;
   }
 
-  public async updatePatient(id: string, req: UpdatePatientRequest): Promise<PatientDto> {
-    const res = await this.request<PatientDto>(`/patients/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(req),
-    });
+  public async updatePatient(
+    id: string,
+    req: UpdatePatientRequest,
+    expectedVersion: number,
+    etag?: string | null
+  ): Promise<PatientDto> {
+    const res = await this.request<PatientDto>(
+      `/patients/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ ...req, expectedVersion }),
+      },
+      { "If-Match": etag ?? `"${expectedVersion}"` }
+    );
+    return res.data;
+  }
+
+  public async archivePatient(id: string): Promise<PatientDto> {
+    const res = await this.request<PatientDto>(`/patients/${id}/archive`, { method: "POST" });
+    return res.data;
+  }
+
+  public async restorePatient(id: string): Promise<PatientDto> {
+    const res = await this.request<PatientDto>(`/patients/${id}/restore`, { method: "POST" });
     return res.data;
   }
 

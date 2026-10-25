@@ -66,6 +66,82 @@ async function mockApi(page: Page): Promise<void> {
       ]),
     })
   );
+  await page.route("**/api/v1/patients?**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          {
+            id: "p-1",
+            clinicId: "c-1",
+            firstName: "Олена",
+            lastName: "Коваленко",
+            fullName: "Олена Коваленко",
+            dateOfBirth: "1990-05-14",
+            gender: "Female",
+            phone: "+380501234567",
+            email: "olena@example.com",
+            externalMedicalRecordNumber: "MRN-001",
+            medicalAlerts: "Penicillin allergy",
+            isActive: true,
+            concurrencyVersion: 1,
+            createdAtUtc: "2026-10-20T10:00:00Z",
+            updatedAtUtc: "2026-10-20T10:00:00Z",
+          },
+        ],
+        pageNumber: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      }),
+    })
+  );
+  await page.route("**/api/v1/patients/p-1", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "p-1",
+        clinicId: "c-1",
+        firstName: "Олена",
+        lastName: "Коваленко",
+        fullName: "Олена Коваленко",
+        dateOfBirth: "1990-05-14",
+        gender: "Female",
+        phone: "+380501234567",
+        email: "olena@example.com",
+        externalMedicalRecordNumber: "MRN-001",
+        medicalAlerts: "Penicillin allergy",
+        isActive: true,
+        concurrencyVersion: 1,
+        createdAtUtc: "2026-10-20T10:00:00Z",
+        updatedAtUtc: "2026-10-20T10:00:00Z",
+      }),
+    })
+  );
+  await page.route("**/api/v1/patients/p-1/encounters", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "e-1",
+          clinicId: "c-1",
+          patientId: "p-1",
+          attendingUserId: "u-1",
+          startedAtUtc: "2026-10-21T09:00:00Z",
+          chiefComplaint: "Періодичний огляд",
+          status: "Completed",
+        },
+      ]),
+    })
+  );
+  await page.route("**/api/v1/patients/p-1/odontogram/latest", (route) =>
+    route.fulfill({ status: 404, contentType: "application/problem+json", body: '{"title":"Not Found","status":404}' })
+  );
 }
 
 test("workspace: login, staff table, logout, and protected-route redirect", async ({ page }) => {
@@ -93,4 +169,25 @@ test("workspace: login, staff table, logout, and protected-route redirect", asyn
   await page.goto("/app.html");
   await page.keyboard.press("End");
   await expect(page.getByRole("heading", { name: /Вхід до MedCanvas/ })).toBeVisible();
+});
+
+test("workspace: patients list and patient card", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/app.html");
+
+  await page.getByLabel(/Електронна пошта/).fill("admin@clinic.example");
+  await page.getByLabel(/Пароль/).fill("StrongP@ssw0rd123!");
+  await page.getByRole("button", { name: /Увійти/ }).click();
+
+  await page.getByRole("link", { name: /Пацієнти/ }).click();
+
+  // List renders the mocked patient with controls
+  await expect(page.getByRole("link", { name: "Олена Коваленко" })).toBeVisible();
+  await expect(page.getByText("MRN-001")).toBeVisible();
+
+  // Patient card: identity, alerts, visit history; no chart yet (M04)
+  await page.getByRole("link", { name: "Олена Коваленко" }).click();
+  await expect(page.getByText("Penicillin allergy")).toBeVisible();
+  await expect(page.getByText("Періодичний огляд")).toBeVisible();
+  await expect(page.getByText(/Одонтограма ще не створена/)).toBeVisible();
 });

@@ -99,8 +99,26 @@ export interface PatientDto {
   email?: string | null;
   externalMedicalRecordNumber?: string | null;
   medicalAlerts?: string | null;
+  isActive?: boolean;
+  concurrencyVersion?: number;
   createdAtUtc: string;
   updatedAtUtc?: string | null;
+}
+
+export interface PatientListOptions {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+  includeArchived?: boolean;
+}
+
+export interface PatientDuplicateHint {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  externalMedicalRecordNumber?: string;
 }
 
 export interface CreatePatientRequest {

@@ -1,6 +1,7 @@
 using MedCanvas.Application.Common.Exceptions;
 using MedCanvas.Application.Common.Interfaces;
 using MedCanvas.Domain.Entities;
+using MedCanvas.Domain.Exceptions;
 using MediatR;
 
 namespace MedCanvas.Application.Features.Encounters;
@@ -41,6 +42,12 @@ public sealed class StartEncounterCommandHandler : IRequestHandler<StartEncounte
         if (patient == null)
         {
             throw new NotFoundException(nameof(Patient), request.PatientId);
+        }
+
+        if (!patient.IsActive)
+        {
+            // Archived patients keep their history readable but cannot start new care episodes.
+            throw new DomainException("Patient is archived and cannot start a new encounter. Restore the patient first.");
         }
 
         var now = _dateTimeProvider.UtcNow;
