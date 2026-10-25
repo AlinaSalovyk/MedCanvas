@@ -334,7 +334,7 @@ function PlanCard({
 
       {plan.status === "Proposed" && canPlan && (
         <div className="ws-form-actions">
-          <button type="button" className="ws-button ws-button-primary" onClick={onApprove}>
+          <button type="button" className="ws-button ws-button-primary" disabled={approving} onClick={onApprove}>
             {t("plans.approve")}
           </button>
           <button type="button" className="ws-button ws-button-danger" disabled={cancelling} onClick={onCancel}>
