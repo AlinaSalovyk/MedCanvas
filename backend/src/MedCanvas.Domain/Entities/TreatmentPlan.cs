@@ -138,6 +138,36 @@ public sealed class TreatmentPlan : BaseEntity, IAggregateRoot
         SetUpdatedTimestamp(utcNow);
     }
 
+    /// <summary>First performed item moves an Approved plan into InProgress (INV-006:
+    /// execution only via explicit recordings, never from the visual chart).</summary>
+    public void NotifyExecutionStarted(DateTime utcNow)
+    {
+        if (Status == TreatmentPlanStatus.Approved)
+        {
+            Status = TreatmentPlanStatus.InProgress;
+            SetUpdatedTimestamp(utcNow);
+        }
+    }
+
+    /// <summary>Mark a plan item performed. Idempotent per item; only meaningful for
+    /// Approved/InProgress plans.</summary>
+    public void MarkItemPerformed(Guid itemId, DateTime utcNow)
+    {
+        if (Status is not (TreatmentPlanStatus.Approved or TreatmentPlanStatus.InProgress))
+        {
+            throw new DomainException($"Treatment plan in status '{Status}' cannot record execution.");
+        }
+
+        var item = _items.FirstOrDefault(i => i.Id == itemId);
+        if (item == null)
+        {
+            throw new DomainException($"Treatment plan item '{itemId}' was not found on this plan.");
+        }
+
+        item.MarkPerformed(utcNow);
+        SetUpdatedTimestamp(utcNow);
+    }
+
     public void Cancel(DateTime utcNow)
     {
         if (Status is TreatmentPlanStatus.Completed or TreatmentPlanStatus.Cancelled)

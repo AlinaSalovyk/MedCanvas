@@ -1,4 +1,5 @@
 using MedCanvas.Domain.Common;
+using MedCanvas.Domain.Enums;
 
 namespace MedCanvas.Domain.Entities;
 
@@ -17,6 +18,7 @@ public sealed class TreatmentPlanItem : BaseEntity
     public decimal UnitPriceSnapshot { get; private set; }
     public decimal TotalAmount { get; private set; }
     public string? Notes { get; private set; }
+    public TreatmentPlanItemStatus ItemStatus { get; private set; }
 
     private TreatmentPlanItem()
     {
@@ -47,6 +49,7 @@ public sealed class TreatmentPlanItem : BaseEntity
         ProcedureCatalogItemId = procedureCatalogItemId;
         Phase = phase?.Trim();
         Notes = notes?.Trim();
+        ItemStatus = TreatmentPlanItemStatus.Planned;
         TotalAmount = ComputeTotal(Quantity, UnitPriceSnapshot);
     }
 
@@ -62,6 +65,17 @@ public sealed class TreatmentPlanItem : BaseEntity
         DateTime createdAtUtc,
         string? notes) =>
         new(id, treatmentPlanId, procedureCatalogItemId, toothFdi, surface, phase, quantity, unitPriceSnapshot, createdAtUtc, notes);
+
+    public void MarkPerformed(DateTime utcNow)
+    {
+        if (ItemStatus == TreatmentPlanItemStatus.Performed)
+        {
+            return; // idempotent
+        }
+
+        ItemStatus = TreatmentPlanItemStatus.Performed;
+        SetUpdatedTimestamp(utcNow);
+    }
 
     internal static decimal ComputeTotal(int quantity, decimal unitPrice) =>
         decimal.Round(quantity * unitPrice, 2, MidpointRounding.ToEven);
