@@ -363,3 +363,25 @@ export interface AddPlanItemRequest {
   quantity: number;
   notes?: string | null;
 }
+
+export type PerformedProcedureStatus = "Recorded" | "Voided";
+
+export interface PerformedProcedureDto {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  encounterId: string;
+  treatmentPlanItemId?: string | null;
+  procedureCatalogItemId: string;
+  catalogItemName: string;
+  toothFdi?: string | null;
+  quantity: number;
+  unitPriceSnapshot: number;
+  totalAmount: number;
+  clinicalNote?: string | null;
+  status: PerformedProcedureStatus;
+  voidReason?: string | null;
+  performedByUserId: string;
+  performedByFullName: string;
+  performedAtUtc: string;
+}
