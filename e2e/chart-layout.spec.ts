@@ -2,6 +2,10 @@
 import { test, expect } from "@playwright/test";
 import { LOWER, UPPER, expectOneRow, openChart, sideTiles } from "./helpers";
 
+// The measured-anatomy path downloads a ~3.6 MB lazy chunk inside the test;
+// on a fully loaded CI machine 30s proved too tight. Assertions unchanged.
+test.use({ timeout: 90_000 });
+
 test.beforeEach(async ({ page }) => { await openChart(page); });
 
 test("classic: each arch is one row, 18→11 21→28 above 48→41 31→38", async ({ page }) => {
