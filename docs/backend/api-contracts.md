@@ -145,6 +145,22 @@ Audited: PROCEDURE_PERFORMED, PROCEDURE_VOIDED.
 
 ---
 
+### 2.2e Demo Billing (M07)
+All payments are SIMULATED demonstrations (IsDemo=true, INV-008) — no real money
+movement exists in the MVP.
+
+| Method | Route | Description | Auth |
+|---|---|---|---|
+| POST | /api/v1/invoices/from-encounter/{encounterId} | Issue an invoice over the encounter's recorded procedures (server-computed total; empty 409) | Admin/Clinician |
+| GET | /api/v1/invoices/{id} | Invoice with lines, payments, balance | Any member |
+| GET | /api/v1/invoices/by-patient/{patientId} | Patient's invoices | Any member |
+| POST | /api/v1/invoices/{id}/simulated-payments | Register a SIMULATED payment (idempotencyKey; overpay 400; retry returns original) | Admin/Clinician/Assistant |
+| POST | /api/v1/invoices/{id}/void | Void with mandatory reason | Admin/Clinician |
+
+Audited: INVOICE_ISSUED, SIMULATED_PAYMENT_RECORDED, INVOICE_VOIDED.
+
+---
+
 ### 2.3 Dental Encounters
 | Method | Route | Description |
 |---|---|---|
