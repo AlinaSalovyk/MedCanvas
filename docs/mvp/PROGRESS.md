@@ -56,7 +56,7 @@ Rules: statuses below are only set from verified evidence; never claim `MERGED` 
 
 ## Last verified action
 
-M06 complete on `feat/mvp-procedure-execution`: idempotent recording, plan linkage, compensating voids, encounter sealing. Backend 468/468; full gate chain exit 0. Pushing for PR.
+M07 complete on `feat/mvp-demo-billing`: demo invoices + simulated payments (server totals, overpay guard, idempotency, DEMO labeling). Backend 476/476; frontend gates green (measured-anatomy e2e retried clean after one CI-load flake). Pushing for PR.
 
 ## Known blockers
 
