@@ -5,6 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OdontogramSyncBridge } from "../../api/odontogramSync";
 import type { SyncStatus } from "../../api/odontogramSync";
 import { destroyOdontogram } from "../../odontogram";
+import { ApiError } from "../../api/client";
+import { emptyClinicalSnapshot } from "../emptyClinicalSnapshot";
+import { EncounterNavigationGuard, registerEncounterFlush } from "../encounterNavigation";
 import App from "../../App";
 import { PerformedProceduresPanel } from "./PerformedProceduresPanel";
 import type { OdontogramResponseDto } from "../../api/types";
@@ -16,6 +19,12 @@ import { useAuth } from "../AuthContext";
  * chip, conflict resolution, recovery lock screen, notes, and completion.
  */
 export function EncounterPage(): ReactNode {
+  const { session } = useAuth();
+  const { id } = useParams<{ id: string }>();
+  return <EncounterWorkspace key={`${session?.clinicId}:${id}`} />;
+}
+
+function EncounterWorkspace(): ReactNode {
   const { client, session, t } = useAuth();
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -27,6 +36,21 @@ export function EncounterPage(): ReactNode {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [serverCopy, setServerCopy] = useState<OdontogramResponseDto | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [missingChart, setMissingChart] = useState(false);
+  const [creatingChart, setCreatingChart] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => registerEncounterFlush(async () => {
+    const bridge = bridgeRef.current;
+    if (!bridge) return;
+    if (bridge.getStatus() === "recovery-required") throw new Error(t("sync.recovery"));
+    setLeaving(true);
+    try {
+      while (bridge.hasUnsavedChanges()) await bridge.save("Save before leaving encounter");
+    } finally {
+      setLeaving(false);
+    }
+  }), [t]);
 
   const encounterQuery = useQuery({
     queryKey: ["encounter", session?.clinicId, id],
@@ -45,12 +69,13 @@ export function EncounterPage(): ReactNode {
 
   // Create the bridge once per encounter and hydrate the engine chart.
   useEffect(() => {
-    if (!id) return;
+    if (!id || !encounter) return;
     let cancelled = false;
     const bridge = new OdontogramSyncBridge({
       client,
       encounterId: id,
       onStatusChange: (next, err) => {
+        if (cancelled) return;
         setStatus(next);
         setStatusError(err ?? null);
       },
@@ -62,11 +87,16 @@ export function EncounterPage(): ReactNode {
       .load()
       .then(() => {
         if (cancelled) return;
-        bridge.startAutoSync();
+        if (!isFinished) bridge.startAutoSync();
         setLoaded(true);
       })
       .catch((err: Error) => {
         if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404 && !isFinished) {
+          setMissingChart(true);
+          setStatusError(null);
+          return;
+        }
         setLoadError(err.message);
         setStatus(bridge.getStatus());
       });
@@ -78,7 +108,27 @@ export function EncounterPage(): ReactNode {
       // Engine hygiene: the module-scoped engine must not leak chart state between patients.
       destroyOdontogram();
     };
-  }, [id, client]);
+  }, [id, client, encounter?.id]);
+
+  useEffect(() => {
+    if (isFinished) bridgeRef.current?.stopAutoSync();
+  }, [isFinished]);
+
+  const createChart = async (): Promise<void> => {
+    if (!id || creatingChart || isFinished) return;
+    setCreatingChart(true);
+    try {
+      await client.saveOdontogram(id, { snapshotJson: emptyClinicalSnapshot(), changeSummary: "Initialize examination" });
+      await bridgeRef.current?.load();
+      bridgeRef.current?.startAutoSync();
+      setMissingChart(false);
+      setLoaded(true);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setCreatingChart(false);
+    }
+  };
 
   const resolveConflict = (): void => {
     setServerCopy(null);
@@ -136,6 +186,7 @@ export function EncounterPage(): ReactNode {
 
   return (
     <section className="ws-encounter">
+      <EncounterNavigationGuard hasChanges={() => bridgeRef.current?.hasUnsavedChanges() ?? false} onError={setLoadError} />
       <div className="ws-page-header">
         <h1>
           {patientQuery.data?.fullName ?? t("encounters.title")}
@@ -158,7 +209,7 @@ export function EncounterPage(): ReactNode {
         )}
       </div>
 
-      {statusError && status !== "conflict" && (
+      {statusError && !missingChart && status !== "conflict" && (
         <p className="ws-error-text" role="alert">
           {statusError.message}
         </p>
@@ -193,16 +244,12 @@ export function EncounterPage(): ReactNode {
         </div>
       )}
 
-      {loaded ? (
-        <>
-          <div className="ws-encounter-engine">
-            <App enableNotes />
-          </div>
-          {!isFinished && <PerformedProceduresPanel encounterId={encounter.id} />}
-        </>
-      ) : (
-        <p aria-live="polite">{t("common.loading")}</p>
-      )}
+      {missingChart && <button type="button" className="ws-button ws-button-primary" disabled={creatingChart} onClick={() => void createChart()}>{t("encounters.initializeChart")}</button>}
+      {!loaded && !missingChart && <p aria-live="polite">{t("common.loading")}</p>}
+      <div className="ws-encounter-engine" style={{ display: loaded ? undefined : "none" }}>
+        <App enableNotes readOnly={!loaded || isFinished || completing || leaving} />
+      </div>
+      {loaded && !isFinished && <PerformedProceduresPanel encounterId={encounter.id} />}
     </section>
   );
 }
