@@ -116,7 +116,7 @@ no production seed endpoints or real payments were introduced.
 | .NET format | PASS after correcting changed test-file whitespace |
 | Full backend/coverage | **525/525 passed**, 0 failed/skipped: Domain 175, Application 157, Infrastructure 23, API 170. Includes real PostgreSQL migration/concurrency/tenant tests. |
 | Architectural parity | **13/13 passed** in explicit API-surface/import-cycle run; full suite also includes canonical native/FHIR regressions |
-| Hosted CI / exact PR HEAD | Pending branch publication and final verification |
+| Hosted CI / exact PR HEAD | Draft [PR #15](https://github.com/AlinaSalovyk/MedCanvas/pull/15), published through a contribution fork; final hosted status recorded after checks |
 
 Baseline race reproduction is retained in the isolated local worktree
 `coverage/audit-baseline` at `d1d67da`, with its dedicated
@@ -134,6 +134,33 @@ reports, rather than averaging repeated assemblies. Excluding compiler-generated
 migrations inflate coverage and generated OpenAPI code depresses it. Application
 remains below the backend skill's 95% target. This is an explicit unmet quality
 target; older module reports did not establish compliance.
+
+## Remaining release prerequisites
+
+## Git delivery and self-review
+
+Draft [PR #15](https://github.com/AlinaSalovyk/MedCanvas/pull/15) is based on
+`d1d67daa75a6b818730c56638a529b4aad52326f`. Initial published implementation
+checkpoint: `bc749130486d10275aad04bc079bf6bdf701fd53` (61 atomic commits).
+Subsequent commits update delivery evidence only; the complete ordered list is
+available in the PR's Commits tab. Migration/configuration/designer/snapshot
+files and the executable project's Program/csproj are grouped because they are
+inseparable. All other implementation commits change one file.
+
+Both CLI and connector identify `Hyptofon`; upstream permissions report
+`push:false`, and direct push failed with HTTP 403. Standard fork publication
+preserves the same commits at `Hyptofon:fix/mvp-final-release-hardening`.
+The connector's cross-repository PR-create call also returned 403; normal CLI
+fork contribution successfully opened #15. Main was not changed or merged.
+PR #14 was inspected and remains open: this account cannot close/update it.
+The report and progress correction in #15 supersede its completion claim.
+
+Self-review checked the final diff, no golden-fixture or engine API changes,
+transaction/lock ordering before balance reads, snapshot read paths, legacy
+rollback behavior, tenant/role predicates, same-key payload matching, synthetic
+data, loopback-only hosting and the absence of fabricated test success. Both raw
+and generated-code-excluded coverage are reported. This is a self-review, not an
+independent human clinical/security acceptance.
 
 ## Remaining release prerequisites
 
