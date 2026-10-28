@@ -48,7 +48,7 @@ public class MedCanvasDbContext : DbContext, IMedCanvasDbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MedCanvasDbContext).Assembly);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var now = _dateTimeProvider?.UtcNow ?? DateTime.UtcNow;
 
@@ -71,6 +71,14 @@ public class MedCanvasDbContext : DbContext, IMedCanvasDbContext
             }
         }
 
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is Npgsql.PostgresException
+        { SqlState: "23505", ConstraintName: "IX_Invoices_ClinicId_EncounterId" or "IX_Invoices_InvoiceNumber" or "IX_SimulatedPayments_ClinicId_IdempotencyKey" or "IX_PerformedProcedures_ClinicId_IdempotencyKey" or "IX_PerformedProcedures_TreatmentPlanItemId" })
+        {
+            throw new MedCanvas.Application.Common.Exceptions.ConflictException("A financial or procedure operation already exists. Refresh and retry using the original operation key.");
+        }
     }
 }
