@@ -1,5 +1,16 @@
 # MedCanvas Backend Architecture & Clean Design Specification
 
+> Post-M09 implementation note (2026-10-28): billing writes and procedure issuance
+> now acquire `IBillingWriteLock`, implemented by Infrastructure as a PostgreSQL
+> clinic-row lock in a READ COMMITTED transaction. It precedes balance/key reads
+> and holds through payment/invoice/audit commit. `InvoiceItems` are immutable
+> financial snapshots; one active invoice per encounter and one active execution
+> per plan item have filtered unique database indexes. See
+> [the independent hardening report](../mvp/post-m09-hardening-report.md) for
+> migration policy, verification and remaining acceptance gates. Earlier design
+> aspirations below (including a transaction pipeline/audit triggers) must be
+> checked against source, not treated as implemented guarantees.
+
 > **Document Status:** Architectural Specification  
 > **Target Framework:** .NET 10 LTS (C# 13) / ASP.NET Core Web API  
 > **Database:** PostgreSQL with `jsonb` / EF Core & Npgsql  
