@@ -116,7 +116,7 @@ no production seed endpoints or real payments were introduced.
 | .NET format | PASS after correcting changed test-file whitespace |
 | Full backend/coverage | **525/525 passed**, 0 failed/skipped: Domain 175, Application 157, Infrastructure 23, API 170. Includes real PostgreSQL migration/concurrency/tenant tests. |
 | Architectural parity | **13/13 passed** in explicit API-surface/import-cycle run; full suite also includes canonical native/FHIR regressions |
-| Hosted CI / exact PR HEAD | Draft [PR #15](https://github.com/AlinaSalovyk/MedCanvas/pull/15), published through a contribution fork; final hosted status recorded after checks |
+| Hosted CI | **BLOCKED: maintainer approval required** on upstream draft [PR #15](https://github.com/AlinaSalovyk/MedCanvas/pull/15). Backend CI, CI and Full-stack browser E2E report `action_required` before jobs run. The fork's Backend CI passed on implementation checkpoint `bc74913`; this does not replace upstream checks on final HEAD. |
 
 Baseline race reproduction is retained in the isolated local worktree
 `coverage/audit-baseline` at `d1d67da`, with its dedicated
@@ -135,8 +135,6 @@ migrations inflate coverage and generated OpenAPI code depresses it. Application
 remains below the backend skill's 95% target. This is an explicit unmet quality
 target; older module reports did not establish compliance.
 
-## Remaining release prerequisites
-
 ## Git delivery and self-review
 
 Draft [PR #15](https://github.com/AlinaSalovyk/MedCanvas/pull/15) is based on
@@ -154,6 +152,17 @@ The connector's cross-repository PR-create call also returned 403; normal CLI
 fork contribution successfully opened #15. Main was not changed or merged.
 PR #14 was inspected and remains open: this account cannot close/update it.
 The report and progress correction in #15 supersede its completion claim.
+
+Upstream approval-gated evidence on delivery checkpoint
+`49a67679847c34854c8d2a97a1a5e4f200fc8c05`:
+[Backend CI](https://github.com/AlinaSalovyk/MedCanvas/actions/runs/40694816264),
+[CI](https://github.com/AlinaSalovyk/MedCanvas/actions/runs/40694816275),
+[Full-stack browser E2E](https://github.com/AlinaSalovyk/MedCanvas/actions/runs/40694816300).
+All concluded `action_required`; none is claimed green. The final PR body and
+delivery message identify the latest HEAD/checks after documentation-only updates.
+The fork's implementation
+[Backend CI](https://github.com/Hyptofon/MedCanvas/actions/runs/40694466308)
+passed, separately from the upstream approval gate.
 
 Self-review checked the final diff, no golden-fixture or engine API changes,
 transaction/lock ordering before balance reads, snapshot read paths, legacy
