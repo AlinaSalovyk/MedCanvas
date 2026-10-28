@@ -18,6 +18,7 @@ vi.mock("../../api/odontogramSync", () => ({
       return Promise.resolve();
     });
     startAutoSync = vi.fn();
+    stopAutoSync = vi.fn();
     destroy = vi.fn();
     save = vi.fn(() => Promise.resolve());
     hasUnsavedChanges = vi.fn(() => false);
@@ -32,7 +33,7 @@ vi.mock("../../api/odontogramSync", () => ({
 }));
 
 vi.mock("../../App", () => ({
-  default: () => <div data-testid="odontogram-app">engine</div>,
+  default: ({ readOnly }: { readOnly: boolean }) => <div data-testid="odontogram-app" data-read-only={readOnly}>engine</div>,
 }));
 
 vi.mock("../../odontogram", () => ({
@@ -134,8 +135,11 @@ describe("Encounter workspace (M04)", () => {
 
     await waitFor(() => expect(screen.getByTestId("odontogram-app")).toBeTruthy());
     expect(screen.getByText(/Клінічні дані закриті для редагування/)).toBeTruthy();
+    expect(bridgeInstances[0].startAutoSync).not.toHaveBeenCalled();
     // The bridge still loads (read path), but M04 UI never offers edits on finished encounters.
-    expect(bridgeInstances[0]!.startAutoSync).toHaveBeenCalled();
+    expect(bridgeInstances[0]!.load).toHaveBeenCalled();
+    expect(bridgeInstances[0]!.stopAutoSync).toHaveBeenCalled();
+    expect(screen.getByTestId("odontogram-app")).toHaveAttribute("data-read-only", "true");
   });
 
   it("destroys the bridge on unmount (engine hygiene)", async () => {
