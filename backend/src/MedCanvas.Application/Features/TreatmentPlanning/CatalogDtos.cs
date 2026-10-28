@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MedCanvas.Domain.Enums;
 
 namespace MedCanvas.Application.Features.TreatmentPlanning;
@@ -30,7 +31,7 @@ public sealed record TreatmentPlanDto(
     Guid ClinicId,
     Guid PatientId,
     Guid SourceEncounterId,
-    TreatmentPlanStatus Status,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<TreatmentPlanStatus>))] TreatmentPlanStatus Status,
     int Version,
     DateTime? ApprovedAtUtc,
     decimal EstimateTotal,
