@@ -38,7 +38,9 @@ readiness. The historical unconditional completion verdict is withdrawn.
 - A credential embedded in the local Git remote was exposed during preflight.
   The URL is sanitized; credential revocation/rotation is unverified. Automatic
   merge is stopped under the owner's explicit hard-stop rule.
-- Hosted CI must be green on PR #15's exact final HEAD. Local final results:
+- Upstream CI on PR #15 is approval-gated (`action_required` for all three
+  workflows); a maintainer must approve execution on the final HEAD. The fork's
+  Backend CI passed on implementation checkpoint `bc74913`. Local final results:
   backend 525/525; Vitest 2693 passed/2 existing skips; existing Chromium 17/17;
   real full-stack browser 2/2 (Kyiv/New York). TypeScript/lint/build/format pass.
 - Application source coverage is 88.27%, below the backend skill's 95% target.
