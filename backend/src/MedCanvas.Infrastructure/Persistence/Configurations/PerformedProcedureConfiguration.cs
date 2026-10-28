@@ -52,6 +52,9 @@ public sealed class PerformedProcedureConfiguration : IEntityTypeConfiguration<P
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(p => new { p.ClinicId, p.IdempotencyKey }).IsUnique();
+        builder.HasOne<TreatmentPlanItem>().WithMany().HasForeignKey(p => p.TreatmentPlanItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(p => p.TreatmentPlanItemId).IsUnique()
+            .HasFilter("\"TreatmentPlanItemId\" IS NOT NULL AND \"Status\" = 'Recorded'");
         builder.HasIndex(p => new { p.ClinicId, p.EncounterId });
         builder.HasIndex(p => new { p.PatientId, p.CreatedAtUtc });
     }
