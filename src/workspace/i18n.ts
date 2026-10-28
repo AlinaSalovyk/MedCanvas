@@ -80,6 +80,9 @@ const uk: Dict = {
   "billing.statuses.FullySimulated": "Повністю симульовано",
   "billing.statuses.Voided": "Анульовано",
   "billing.noProcedures": "Немає записаних процедур для білінгу",
+  "billing.uncertain": "Підтвердження симульованої оплати очікується. Повторіть ту саму операцію перед новою оплатою.",
+  "billing.retryPayment": "Повторити цю симульовану оплату",
+  "billing.legacySnapshot": "Історичний знімок позицій відсутній. Потрібна перевірка рахунку перед подальшими оплатами.",
 "nav.dashboard": "Панель",
   "dashboard.title": "Панель клініки",
   "dashboard.todays": "Записи на сьогодні",
@@ -96,6 +99,7 @@ const uk: Dict = {
 "nav.calendar": "Календар",
   "calendar.startEncounter": "Почати прийом",
   "encounters.title": "Клінічний прийом",
+  "encounters.initializeChart": "Створити одонтограму цього прийому",
   "encounters.notFound": "Прийом не знайдено",
   "encounters.complete": "Завершити прийом",
   "encounters.finished": "Прийом {{status}}. Клінічні дані закриті для редагування.",
@@ -259,6 +263,10 @@ const uk: Dict = {
 };
 
 const en: Dict = {
+  "encounters.initializeChart": "Create this encounter's odontogram",
+  "billing.uncertain": "Simulated payment confirmation is pending. Retry the same operation before starting another payment.",
+  "billing.retryPayment": "Retry this simulated payment",
+  "billing.legacySnapshot": "Historical invoice line snapshot is unavailable. Review is required before further payments.",
   "app.title": "MedCanvas",
   "app.subtitle": "Clinic workspace",
   "login.title": "Sign in to MedCanvas",
