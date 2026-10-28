@@ -20,7 +20,7 @@ These merge commits are present in fetched main, independently verified at
 | M07 Demo billing | [#10](https://github.com/AlinaSalovyk/MedCanvas/pull/10) | `bc9a13c75cd77f1f12ae8fc0e00e2ce48f1eaea9` | MERGED |
 | M08 Follow-up/dashboard | [#11](https://github.com/AlinaSalovyk/MedCanvas/pull/11) | `3ad32b4188c1484bf474b6e89811128b7a837863` | MERGED |
 | M09 API workflow | [#12](https://github.com/AlinaSalovyk/MedCanvas/pull/12) | `d1d67daa75a6b818730c56638a529b4aad52326f` | MERGED |
-| Final stabilization | `fix/mvp-final-release-hardening` | Not merged | VERIFICATION |
+| Final stabilization | [#15](https://github.com/AlinaSalovyk/MedCanvas/pull/15), fork branch `Hyptofon:fix/mvp-final-release-hardening` | Not merged | DRAFT / RELEASE BLOCKED |
 
 ## Current work and evidence
 
@@ -38,12 +38,19 @@ readiness. The historical unconditional completion verdict is withdrawn.
 - A credential embedded in the local Git remote was exposed during preflight.
   The URL is sanitized; credential revocation/rotation is unverified. Automatic
   merge is stopped under the owner's explicit hard-stop rule.
-- Hosted CI must be green on the stabilization PR's exact final HEAD.
+- Hosted CI must be green on PR #15's exact final HEAD. Local final results:
+  backend 525/525; Vitest 2693 passed/2 existing skips; existing Chromium 17/17;
+  real full-stack browser 2/2 (Kyiv/New York). TypeScript/lint/build/format pass.
+- Application source coverage is 88.27%, below the backend skill's 95% target.
 - Coverage, dirty-chart authentication expiry, backup/restore and FR-702
   relational follow-up acceptance require explicit review.
 - PR #13 is closed without merging. PR #14 was inspected: it is documentation
   only and still claims unconditional program completion. It must not merge as
   written. The stabilization report/progress correction supersedes that claim;
-  its final GitHub disposition will be recorded after the stabilization PR exists.
+  the corrected ledger/report in draft PR #15 supersede its claim. Both CLI and
+  connected GitHub authenticate as Hyptofon with upstream `push:false`; a direct
+  push returned 403. Publication therefore uses a standard contribution fork.
+  This account cannot close/update PR #14 or merge upstream main. No such action
+  is claimed.
 
 No production deployment or real clinical/payment data is authorized by these tests.
