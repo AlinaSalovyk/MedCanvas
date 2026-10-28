@@ -92,8 +92,9 @@ export class MedCanvasApiClient {
       ...customHeaders,
     };
 
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+    const requestToken = this.token;
+    if (requestToken) {
+      headers["Authorization"] = `Bearer ${requestToken}`;
     }
 
     if (options.body && typeof options.body === "string" && !headers["Content-Type"]) {
@@ -109,7 +110,12 @@ export class MedCanvasApiClient {
     });
 
     if (response.status === 401) {
-      this.onUnauthorized?.();
+      // A late response from the previous clinic/session must not log out the
+      // current one. Expiration also discards the expired credential immediately.
+      if (this.token === requestToken) {
+        this.token = null;
+        this.onUnauthorized?.();
+      }
       throw new ApiError(401, "Unauthorized: Authentication required or token expired.");
     }
 
