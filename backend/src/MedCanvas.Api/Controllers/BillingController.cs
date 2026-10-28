@@ -50,7 +50,7 @@ public sealed class BillingController : ControllerBase
     }
 
     [HttpPost("{id:guid}/simulated-payments")]
-    [Authorize(Policy = Policies.CanMutatePatients)]
+    [Authorize(Policy = Policies.CanRegisterSimulatedPayments)]
     [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
