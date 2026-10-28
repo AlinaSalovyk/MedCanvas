@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MedCanvas.Domain.Enums;
 
 namespace MedCanvas.Application.Features.Billing;
@@ -6,7 +7,7 @@ public sealed record SimulatedPaymentDto(
     Guid Id,
     decimal Amount,
     string MethodLabel,
-    SimulatedPaymentStatus Status,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<SimulatedPaymentStatus>))] SimulatedPaymentStatus Status,
     string? VoidReason,
     string RecordedByFullName,
     DateTime RecordedAtUtc);
@@ -20,14 +21,15 @@ public sealed record InvoiceDto(
     string InvoiceNumber,
     decimal TotalAmount,
     string Currency,
-    InvoiceStatus Status,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<InvoiceStatus>))] InvoiceStatus Status,
     decimal SimulatedPaid,
     decimal RemainingBalance,
     bool IsDemo,
     IReadOnlyList<InvoiceLineDto> Lines,
     IReadOnlyList<SimulatedPaymentDto> Payments,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc);
+    DateTime? UpdatedAtUtc,
+    bool HasLineSnapshot = false);
 
 public sealed record InvoiceLineDto(
     Guid PerformedProcedureId,
