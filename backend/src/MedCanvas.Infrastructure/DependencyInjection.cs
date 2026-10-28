@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IOdontogramRepository, OdontogramRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IEncounterRepository, EncounterRepository>();
+        services.AddScoped<IBillingWriteLock, BillingWriteLock>();
 
         services.AddHttpContextAccessor();
         services.AddSingleton<IDateTimeProvider, Services.DateTimeProvider>();
