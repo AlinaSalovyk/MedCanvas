@@ -423,6 +423,7 @@ export interface InvoiceDto {
   simulatedPaid: number;
   remainingBalance: number;
   isDemo: boolean;
+  hasLineSnapshot: boolean;
   lines: InvoiceLineDto[];
   payments: SimulatedPaymentDto[];
   createdAtUtc: string;
