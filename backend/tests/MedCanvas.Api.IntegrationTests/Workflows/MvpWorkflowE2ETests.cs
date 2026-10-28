@@ -87,6 +87,9 @@ public class MvpWorkflowE2ETests : IClassFixture<MedCanvasApiFactory>
         {
             var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
             db.ClinicChairs.Add(ClinicChair.CreateWithId(chairId, clinicA.Clinic.Id, "Chair 1", DateTime.UtcNow));
+            foreach (var day in Enumerable.Range(1, 7))
+                db.ProviderAvailabilities.Add(ProviderAvailability.Create(clinicA.Clinic.Id, clinicA.Clinician.Id,
+                    day, new TimeOnly(8, 0), new TimeOnly(18, 0), DateTime.UtcNow));
             await db.SaveChangesAsync();
         }
 
@@ -184,7 +187,7 @@ public class MvpWorkflowE2ETests : IClassFixture<MedCanvasApiFactory>
         plan = await (await clinicA.ClinicianClient.PostAsync($"/api/v1/treatment-plans/{plan.Id}/approve", content: null)).Content.ReadFromJsonAsync<TreatmentPlanDto>();
         plan!.Status.Should().Be(TreatmentPlanStatus.Approved);
 
-        var recordProcedure = await clinicA.ClinicianClient.PostAsJsonAsync($"/api/v1/encounters/{encounterId}/performed-procedures", new
+        var procedureRequest = new
         {
             catalogItemId = catalogItem.Id,
             idempotencyKey = "e2e-procedure-1",
@@ -192,18 +195,14 @@ public class MvpWorkflowE2ETests : IClassFixture<MedCanvasApiFactory>
             quantity = 1,
             treatmentPlanItemId = plan.Items[0].Id,
             clinicalNote = "Виконано під анестезією"
-        });
+        };
+        var recordProcedure = await clinicA.ClinicianClient.PostAsJsonAsync($"/api/v1/encounters/{encounterId}/performed-procedures", procedureRequest);
         recordProcedure.StatusCode.Should().Be(HttpStatusCode.Created);
         var performed = await recordProcedure.Content.ReadFromJsonAsync<JsonElement>();
         performed.GetProperty("totalAmount").GetDecimal().Should().Be(2500m);
 
         // A retried submission does NOT double-charge (FR-505)
-        var retried = await clinicA.ClinicianClient.PostAsJsonAsync($"/api/v1/encounters/{encounterId}/performed-procedures", new
-        {
-            catalogItemId = catalogItem.Id,
-            idempotencyKey = "e2e-procedure-1",
-            treatmentPlanItemId = plan.Items[0].Id
-        });
+        var retried = await clinicA.ClinicianClient.PostAsJsonAsync($"/api/v1/encounters/{encounterId}/performed-procedures", procedureRequest);
         retried.StatusCode.Should().Be(HttpStatusCode.Created);
         (await retried.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid()
             .Should().Be(performed.GetProperty("id").GetGuid());
