@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MedCanvasApiClient } from "../api/client";
 import type { CurrentUserResponse } from "../api/types";
@@ -28,6 +29,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
+  const queryClient = useQueryClient();
+  const sessionRef = useRef<WorkspaceSession | null>(null);
   const [lang, setLang] = useState<WorkspaceLanguage>(() => getWorkspaceLanguage());
   const [session, setSessionState] = useState<WorkspaceSession | null>(null);
 
@@ -36,14 +39,20 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     () =>
       new MedCanvasApiClient({
         onUnauthorized: () => {
+          queryClient.clear();
+          sessionRef.current = null;
           setSessionState(null);
         },
       }),
-    []
+    [queryClient]
   );
 
   const setSession = useCallback(
     (next: WorkspaceSession | null) => {
+      if (sessionRef.current?.clinicId !== next?.clinicId || sessionRef.current?.userId !== next?.userId) {
+        queryClient.clear();
+      }
+      sessionRef.current = next;
       setSessionState(next);
       if (next) {
         client.setToken(next.token);
@@ -51,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         client.setToken(null);
       }
     },
-    [client]
+    [client, queryClient]
   );
 
   const logout = useCallback(() => setSession(null), [setSession]);
