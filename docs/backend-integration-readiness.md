@@ -1,5 +1,12 @@
 # Backend Integration Readiness — Advanced Odontogram
 
+> Historical design document: statements below saying the backend is absent or
+> describing an alternative v2.19 envelope are obsolete. Current implementation
+> uses `backend/`, `src/api/` and the canonical v2.22 `{version, globals, teeth,
+> case?, plan?}` envelope. Consult [frontend contracts](backend/frontend-contracts.md)
+> and [current acceptance evidence](mvp/post-m09-hardening-report.md). This document
+> is retained as design history and is not a current readiness certification.
+
 > **Document Status:** Architectural Specification & Integration Boundary Map  
 > **Target Future Backend:** C# / ASP.NET Core Web API, PostgreSQL, Entity Framework Core  
 > **Current Project Status:** All backend capabilities described herein are **PLANNED, NOT IMPLEMENTED**. No backend source code exists in this repository.
