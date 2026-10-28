@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MedCanvas.Domain.Enums;
 
 namespace MedCanvas.Application.Features.TreatmentExecution;
@@ -15,7 +16,7 @@ public sealed record PerformedProcedureDto(
     decimal UnitPriceSnapshot,
     decimal TotalAmount,
     string? ClinicalNote,
-    PerformedProcedureStatus Status,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<PerformedProcedureStatus>))] PerformedProcedureStatus Status,
     string? VoidReason,
     Guid PerformedByUserId,
     string PerformedByFullName,
