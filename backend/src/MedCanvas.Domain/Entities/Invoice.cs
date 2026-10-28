@@ -22,6 +22,10 @@ public sealed class Invoice : BaseEntity, IAggregateRoot
     public Guid CreatedByUserId { get; private set; }
     public DateTime? VoidedAtUtc { get; private set; }
     public string? VoidReason { get; private set; }
+    public bool HasLineSnapshot { get; private set; }
+
+    private readonly List<InvoiceItem> _items = [];
+    public IReadOnlyList<InvoiceItem> Items => _items.AsReadOnly();
 
     private readonly List<SimulatedPayment> _payments = [];
     public IReadOnlyList<SimulatedPayment> Payments => _payments;
@@ -64,11 +68,36 @@ public sealed class Invoice : BaseEntity, IAggregateRoot
 
     public decimal SimulatedPaid() => _payments.Where(p => p.Status == SimulatedPaymentStatus.Recorded).Sum(p => p.Amount);
 
+    public static Invoice Issue(
+        Guid clinicId, Guid patientId, Guid encounterId, string invoiceNumber,
+        IReadOnlyList<PerformedProcedure> procedures, IReadOnlyDictionary<Guid, ProcedureCatalogItem> catalog,
+        Guid createdByUserId, DateTime utcNow)
+    {
+        if (procedures.Count == 0 || procedures.Select(p => p.Id).Distinct().Count() != procedures.Count ||
+            procedures.Any(p => p.ClinicId != clinicId || p.PatientId != patientId || p.EncounterId != encounterId))
+        {
+            throw new DomainException("Invoice procedures must be distinct and belong to this clinic, patient and encounter.");
+        }
+
+        var invoice = Create(clinicId, patientId, encounterId, invoiceNumber, procedures.Sum(p => p.TotalAmount), createdByUserId, utcNow);
+        foreach (var procedure in procedures)
+        {
+            invoice._items.Add(InvoiceItem.Capture(invoice.Id, procedure, catalog[procedure.ProcedureCatalogItemId], utcNow));
+        }
+        invoice.HasLineSnapshot = true;
+        return invoice;
+    }
+
     public decimal RemainingBalance() => TotalAmount - SimulatedPaid();
 
     /// <summary>FR-606: a simulated payment cannot exceed the remaining balance.</summary>
     public void AddSimulatedPayment(SimulatedPayment payment, DateTime utcNow)
     {
+        if (payment.ClinicId != ClinicId || payment.InvoiceId != Id || payment.Amount <= 0 ||
+            _payments.Any(p => p.IdempotencyKey == payment.IdempotencyKey))
+        {
+            throw new DomainException("Payment must be positive, unique and belong to this invoice and clinic.");
+        }
         if (Status is InvoiceStatus.Voided)
         {
             throw new DomainException("A voided invoice cannot accept simulated payments.");
@@ -96,6 +125,11 @@ public sealed class Invoice : BaseEntity, IAggregateRoot
 
     public void Void(string reason, Guid voidedByUserId, DateTime utcNow)
     {
+        if (SimulatedPaid() != 0)
+        {
+            throw new DomainException("An invoice with recorded simulated payments cannot be voided or reissued.");
+        }
+        if (voidedByUserId == Guid.Empty) throw new ArgumentException("Voiding user ID is required.", nameof(voidedByUserId));
         if (Status == InvoiceStatus.Voided)
         {
             throw new DomainException("Invoice is already voided.");
