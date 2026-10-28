@@ -1,63 +1,49 @@
-| M01 | **MERGED** | PR #4 squash-merged as `c07182a` after CI green on HEAD `981db68` (`CI` 7m37s ✓, `Backend CI` 1m26s ✓) + self-review. Report: `M01-report.md` |# MedCanvas MVP — Progress Checkpoint
+﻿# MedCanvas MVP — Progress Checkpoint
 
-Owner-facing live state of the autonomous MVP program. Updated per module.
-Rules: statuses below are only set from verified evidence; never claim `MERGED` without GitHub confirmation; no secrets/PHI here.
+Last audit: 2026-10-28. Current acceptance is **INCONCLUSIVE — REQUIRED VERIFICATION INCOMPLETE**.
+Merged implementation modules do not establish that final acceptance/security gates passed.
 
-## Phase status
+## Verified module provenance
 
-| Phase | State | Notes |
-|---|---|---|
-| Phase Zero — audit | **COMPLETE** | Spec read in full (canonical copy `MedCanvas-MVP-TZ-v1.0.md`); 3 deep-audit agents; deliverables 01–05 written; baseline all green (see below) |
-| M00 | **MERGED** | PR #3 squash-merged as `2b59f50` after CI green on HEAD `ac3be8f` (`CI` 5m57s ✓, `Backend CI` 1m16s ✓) + self-review. Report: `M00-report.md` |
-| M01 | TESTING | Implementation complete (31 commits): auth rework, onboarding, membership mgmt, settings, rate limiting, workspace UI; all gates green locally; see `M01-report.md` |
-| M02 | **MERGED** | PR #5 squash-merged as `a953ac9` after CI green on HEAD `5450de5` (`CI` 8m0s ✓, `Backend CI` 1m14s ✓) + self-review. Report: `M02-report.md` |
-| M03 | **MERGED** | PR #6 squash-merged as `7d309b9` after CI green on HEAD `af4ca7e` (`CI` 6m3s ✓, `Backend CI` 1m25s ✓) + self-review. Report: `M03-report.md` |
-| M04 | **MERGED** | PR #7 squash-merged as `6b365ba` after CI green on HEAD `fbcdb9e` (`CI` 5m43s ✓, `Backend CI` 1m29s ✓) + self-review. Report: `M04-report.md` |
-| M05 | **MERGED** | PR #8 squash-merged as `5d6b0ad` after CI green on HEAD `7354690` (`CI` 8m1s ✓, `Backend CI` 1m28s ✓) + self-review. Report: `M05-report.md` |
-| M06 | TESTING | All gates green locally (backend 468/468, format/lint/vitest/playwright exit 0); see `M06-report.md` |
-| M07–M09 | NOT_STARTED | — |
+These merge commits are present in fetched main, independently verified at
+`d1d67daa75a6b818730c56638a529b4aad52326f`.
 
-## Verified baseline (2026-10-24, `main` @ `f970f28`)
+| Module | PR | Merge SHA | State |
+|---|---|---|---|
+| M00 Clinical safety | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50947eb7623edd803a92bf98f4b16843c05` | MERGED |
+| M01 Identity/workspace | [#4](https://github.com/AlinaSalovyk/MedCanvas/pull/4) | `c07182ab571238c6324ec79190d982d2bc0f1259` | MERGED |
+| M02 Patients | [#5](https://github.com/AlinaSalovyk/MedCanvas/pull/5) | `a953ac914212b5a682f34a506063daf15f41d354` | MERGED |
+| M03 Scheduling | [#6](https://github.com/AlinaSalovyk/MedCanvas/pull/6) | `7d309b955e7834c94b18c3f867cda2a655800433` | MERGED |
+| M04 Clinical workspace | [#7](https://github.com/AlinaSalovyk/MedCanvas/pull/7) | `6b365bad75b31007c585e68389f81ea037e17cf4` | MERGED |
+| M05 Plans | [#8](https://github.com/AlinaSalovyk/MedCanvas/pull/8) | `5d6b0ad5497180dafa31daff9bf1d5a5eec98661` | MERGED |
+| M06 Execution | [#9](https://github.com/AlinaSalovyk/MedCanvas/pull/9) | `fbbfdce7cc893d220a13db7e125e9975be927ac0` | MERGED |
+| M07 Demo billing | [#10](https://github.com/AlinaSalovyk/MedCanvas/pull/10) | `bc9a13c75cd77f1f12ae8fc0e00e2ce48f1eaea9` | MERGED |
+| M08 Follow-up/dashboard | [#11](https://github.com/AlinaSalovyk/MedCanvas/pull/11) | `3ad32b4188c1484bf474b6e89811128b7a837863` | MERGED |
+| M09 API workflow | [#12](https://github.com/AlinaSalovyk/MedCanvas/pull/12) | `d1d67daa75a6b818730c56638a529b4aad52326f` | MERGED |
+| Final stabilization | `fix/mvp-final-release-hardening` | Not merged | VERIFICATION |
 
-| Gate | Result |
-|---|---|
-| `npx tsc -b --noEmit` | PASS |
-| `npm run lint` | PASS (0 errors / 248 pre-existing warnings) |
-| `npm run build` | PASS |
-| Vitest | PASS — 2 638 / 2 skipped (env-gated) |
-| Playwright (chromium, 2 workers) | PASS — 14/14 |
-| `dotnet build -c Release` | PASS 0w/0e |
-| `dotnet format --verify-no-changes` | PASS |
-| `dotnet test` (+coverage) | PASS — 279/279, 0 skipped |
-| GitHub Actions on `main` HEAD | `CI` + `Backend CI` green |
+## Current work and evidence
 
-## Module ledger
+The [post-M09 report](post-m09-hardening-report.md) records findings, corrected
+financial/scheduling policies, legacy migration handling and real-browser setup.
+`npm run test:e2e:fullstack` runs against real ASP.NET/PostgreSQL with synthetic
+clinics in Kyiv and New York browser zones. Existing mocked browser tests remain.
 
-| Module | Branch | Base SHA | Final SHA | PR | Merge SHA | Status | Report |
-|---|---|---|---|---|---|---|---|
-| M00 | `fix/mvp-clinical-safety-gate` | `f970f28` | `ac3be8f` | [#3](https://github.com/AlinaSalovyk/MedCanvas/pull/3) | `2b59f50` | **MERGED** | `M00-report.md` |
-| M01 | `feat/mvp-workspace-identity` | `2b59f50` | `981db68` | [#4](https://github.com/AlinaSalovyk/MedCanvas/pull/4) | `c07182a` | **MERGED** | `M01-report.md` |
-| M02 | `feat/mvp-patients` | `c07182a` | `5450de5` | [#5](https://github.com/AlinaSalovyk/MedCanvas/pull/5) | `a953ac9` | **MERGED** | `M02-report.md` |
-| M03 | `feat/mvp-scheduling` | `a953ac9` | `af4ca7e` | [#6](https://github.com/AlinaSalovyk/MedCanvas/pull/6) | `7d309b9` | **MERGED** | `M03-report.md` |
-| M04 | `feat/mvp-clinical-workspace` | `7d309b9` | `fbcdb9e` | [#7](https://github.com/AlinaSalovyk/MedCanvas/pull/7) | `6b365ba` | **MERGED** | `M04-report.md` |
-| M05 | `feat/mvp-treatment-planning` | — | — | — | — | NOT_STARTED | — |
-| M06 | `feat/mvp-procedure-execution` | — | — | — | — | NOT_STARTED | — |
-| M07 | `feat/mvp-demo-billing` | — | — | — | — | NOT_STARTED | — |
-| M08 | `feat/mvp-follow-up-dashboard` | — | — | — | — | NOT_STARTED | — |
-| M09 | `test/mvp-end-to-end-hardening` | `3ad32b4` | see PR | — | — | TESTING | `final-report.md` |
+Final local results and hosted CI HEAD are maintained in that report and the
+stabilization PR. No test count copied from an older module establishes current
+readiness. The historical unconditional completion verdict is withdrawn.
 
-## Decisions log
+## Release blockers and documentation reconciliation
 
-| # | Decision | Rationale |
-|---|---|---|
-| D1 | Merge policy conflict (TZ forbids auto-merge vs program authorizes) resolved in favor of the program's explicit process instruction, with every gate mandatory first; branch protections always win | TZ = functional scope authority; program = execution process authority (later, explicit). Recorded in `05-quality-and-release-gates.md` §4 and every PR description |
-| D2 | M00 fixes target `src/api/odontogramSync.ts` + backend `FhirBundleBuilder` only; no engine rewrite | TZ M00 scope |
-| D3 | Audit deliverables + canonical TZ committed via the M00 PR (no direct commits to `main`) | TZ §5.3 no direct main commits |
+- A credential embedded in the local Git remote was exposed during preflight.
+  The URL is sanitized; credential revocation/rotation is unverified. Automatic
+  merge is stopped under the owner's explicit hard-stop rule.
+- Hosted CI must be green on the stabilization PR's exact final HEAD.
+- Coverage, dirty-chart authentication expiry, backup/restore and FR-702
+  relational follow-up acceptance require explicit review.
+- PR #13 is closed without merging. PR #14 was inspected: it is documentation
+  only and still claims unconditional program completion. It must not merge as
+  written. The stabilization report/progress correction supersedes that claim;
+  its final GitHub disposition will be recorded after the stabilization PR exists.
 
-## Last verified action
-
-M09 complete on `test/mvp-end-to-end-hardening`: E2E-MVP-001 passes through the real ASP.NET pipeline against real PostgreSQL (12 TZ steps incl. race-safe booking, idempotent procedures, overpay rejection, sealing, two-clinic isolation, persistence reload). Backend 478/478; Vitest 2680/2-skip; Playwright 17/17 exit 0. Final report: `final-report.md`. Pushing for PR.
-
-## Known blockers
-
-None active. Process note: the `gh` CLI account (Hyptofon) is not a repository collaborator — PR create/merge go through the already-configured repository credential via REST API (push via git works normally).
+No production deployment or real clinical/payment data is authorized by these tests.
