@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MedCanvas.Domain.Enums;
 
 namespace MedCanvas.Application.Features.Scheduling;
@@ -13,7 +14,7 @@ public sealed record AppointmentDto(
     string ChairName,
     DateTime StartAtUtc,
     DateTime EndAtUtc,
-    AppointmentStatus Status,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<AppointmentStatus>))] AppointmentStatus Status,
     string ReasonForVisit,
     string? InternalNote,
     string? CancellationReason,

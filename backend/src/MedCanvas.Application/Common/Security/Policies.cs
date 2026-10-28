@@ -17,4 +17,5 @@ public static class Policies
     public const string CanManageClinic = "CanManageClinic";
     public const string CanReadCalendar = "CanReadCalendar";
     public const string CanManageCalendar = "CanManageCalendar";
+    public const string CanRegisterSimulatedPayments = "CanRegisterSimulatedPayments";
 }

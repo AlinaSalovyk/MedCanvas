@@ -13,15 +13,18 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
     private readonly IMedCanvasDbContext _dbContext;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly IBillingWriteLock _writeLock;
 
     public RecordPerformedProcedureCommandHandler(
         IMedCanvasDbContext dbContext,
         ICurrentUserContext currentUserContext,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        IBillingWriteLock writeLock)
     {
         _dbContext = dbContext;
         _currentUserContext = currentUserContext;
         _dateTimeProvider = dateTimeProvider;
+        _writeLock = writeLock;
     }
 
     public async Task<PerformedProcedureDto> Handle(RecordPerformedProcedureCommand request, CancellationToken cancellationToken)
@@ -34,6 +37,7 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
         var clinicId = _currentUserContext.ClinicId.Value;
         var actorUserId = _currentUserContext.UserId.Value;
         var now = _dateTimeProvider.UtcNow;
+        await using var transaction = await _writeLock.AcquireAsync(clinicId, cancellationToken);
 
         // FR-505: a retried request returns the original record instead of double-charging.
         var existing = await _dbContext.PerformedProcedures
@@ -41,6 +45,14 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
             .FirstOrDefaultAsync(p => p.ClinicId == clinicId && p.IdempotencyKey == request.IdempotencyKey.Trim(), cancellationToken);
         if (existing != null)
         {
+            var requestedTooth = string.IsNullOrWhiteSpace(request.ToothFdi) ? null : request.ToothFdi.Trim();
+            if (existing.EncounterId != request.EncounterId || existing.ProcedureCatalogItemId != request.CatalogItemId ||
+                existing.TreatmentPlanItemId != request.TreatmentPlanItemId || existing.Quantity != request.Quantity ||
+                (requestedTooth != null && existing.ToothFdi != requestedTooth) ||
+                existing.ClinicalNote != request.ClinicalNote?.Trim())
+            {
+                throw new ConflictException("The operation key has already been used for a different performed procedure.");
+            }
             return await ProjectAsync(_dbContext, existing, cancellationToken);
         }
 
@@ -57,6 +69,11 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
             throw new Domain.Exceptions.DomainException(
                 $"Encounter is '{encounter.Status}'; procedures can only be recorded on an encounter in progress.");
         }
+        if (await _dbContext.Invoices.AnyAsync(i => i.ClinicId == clinicId && i.EncounterId == encounter.Id &&
+            i.Status != InvoiceStatus.Voided, cancellationToken))
+        {
+            throw new ConflictException("The encounter's billable procedures are fixed by its active invoice. Void an unpaid invoice before recording more work, or start a new encounter.");
+        }
 
         var catalogItem = await _dbContext.ProcedureCatalogItems
             .FirstOrDefaultAsync(i => i.Id == request.CatalogItemId && i.ClinicId == clinicId, cancellationToken);
@@ -66,6 +83,7 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
         }
 
         Guid? planItemId = null;
+        TreatmentPlanItem? sourceItem = null;
         if (request.TreatmentPlanItemId.HasValue)
         {
             var plan = await _dbContext.TreatmentPlans
@@ -85,6 +103,18 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
                 throw new Domain.Exceptions.DomainException("The referenced plan item belongs to a different patient.");
             }
 
+            sourceItem = plan.Items.Single(i => i.Id == request.TreatmentPlanItemId.Value);
+            if (sourceItem.ProcedureCatalogItemId != catalogItem.Id || sourceItem.Quantity != request.Quantity ||
+                (!string.IsNullOrWhiteSpace(request.ToothFdi) && sourceItem.ToothFdi != request.ToothFdi.Trim()))
+            {
+                throw new Domain.Exceptions.DomainException("Execution must match the approved plan item's procedure, tooth and quantity.");
+            }
+            if (await _dbContext.PerformedProcedures.AnyAsync(p => p.ClinicId == clinicId &&
+                p.TreatmentPlanItemId == sourceItem.Id && p.Status == PerformedProcedureStatus.Recorded, cancellationToken))
+            {
+                throw new ConflictException("This plan item already has a recorded execution. Void the erroneous execution before correcting it.");
+            }
+
             plan.MarkItemPerformed(request.TreatmentPlanItemId.Value, now);
             plan.NotifyExecutionStarted(now);
             planItemId = request.TreatmentPlanItemId;
@@ -96,10 +126,10 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
             encounter.Id,
             planItemId,
             catalogItem.Id,
-            request.ToothFdi,
+            sourceItem?.ToothFdi ?? request.ToothFdi,
             request.Quantity,
             actorUserId,
-            catalogItem.DefaultPrice,
+            sourceItem?.UnitPriceSnapshot ?? catalogItem.DefaultPrice,
             request.ClinicalNote,
             request.IdempotencyKey,
             now);
@@ -117,6 +147,7 @@ public sealed class RecordPerformedProcedureCommandHandler : IRequestHandler<Rec
             now));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await ProjectAsync(_dbContext, performed, cancellationToken);
     }

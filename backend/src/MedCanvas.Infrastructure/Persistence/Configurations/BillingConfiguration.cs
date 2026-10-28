@@ -22,6 +22,22 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.CreatedByUserId).IsRequired();
         builder.Property(i => i.VoidedAtUtc);
         builder.Property(i => i.VoidReason).HasMaxLength(500);
+        builder.Property(i => i.HasLineSnapshot).IsRequired();
+
+        builder.OwnsMany(i => i.Items, item =>
+        {
+            item.ToTable("InvoiceItems");
+            item.WithOwner().HasForeignKey(i => i.InvoiceId);
+            item.HasKey(i => i.Id);
+            item.Property(i => i.Id).ValueGeneratedNever();
+            item.Property(i => i.CodeSnapshot).IsRequired().HasMaxLength(50);
+            item.Property(i => i.DescriptionSnapshot).IsRequired().HasMaxLength(250);
+            item.Property(i => i.ToothFdi).HasMaxLength(2);
+            item.Property(i => i.UnitPriceSnapshot).HasPrecision(12, 2);
+            item.Property(i => i.TotalAmount).HasPrecision(12, 2);
+            item.HasIndex(i => new { i.InvoiceId, i.PerformedProcedureId }).IsUnique();
+            item.HasOne<PerformedProcedure>().WithMany().HasForeignKey(i => i.PerformedProcedureId).OnDelete(DeleteBehavior.Restrict);
+        });
 
         builder.HasMany(i => i.Payments)
             .WithOne()
@@ -44,6 +60,8 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(i => i.InvoiceNumber).IsUnique();
+        builder.HasIndex(i => new { i.ClinicId, i.EncounterId }).IsUnique()
+            .HasFilter("\"Status\" <> 'Voided'");
         builder.HasIndex(i => new { i.ClinicId, i.PatientId });
     }
 }

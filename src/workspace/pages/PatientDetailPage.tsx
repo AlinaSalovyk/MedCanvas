@@ -143,7 +143,7 @@ export function PatientDetailPage(): ReactNode {
               <tbody>
                 {encountersQuery.data!.map((e) => (
                   <tr key={e.id}>
-                    <td>{formatDate(e.startedAtUtc)}</td>
+                    <td><Link to={`/encounters/${e.id}`}>{formatDate(e.startedAtUtc)}</Link></td>
                     <td>{e.chiefComplaint ?? "—"}</td>
                     <td>{t(`patients.encounterStatus.${e.status}`)}</td>
                   </tr>

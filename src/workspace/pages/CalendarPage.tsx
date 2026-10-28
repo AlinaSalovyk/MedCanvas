@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppointmentDto, AppointmentStatus, PatientDto } from "../../api/types";
 import { useAuth } from "../AuthContext";
+import { clinicDate, clinicLocalToUtc } from "../clinicTime";
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   Scheduled: "ws-appt-scheduled",
@@ -47,15 +48,6 @@ function addDays(d: Date, days: number): Date {
   return copy;
 }
 
-function toLocalInput(utc: Date): string {
-  const local = new Date(utc.getTime() - utc.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
-function fromLocalInput(value: string): Date {
-  return new Date(value); // interpreted in the user's local zone, sent as ISO UTC
-}
-
 export function CalendarPage(): ReactNode {
   const { client, session, t } = useAuth();
   const queryClient = useQueryClient();
@@ -70,9 +62,18 @@ export function CalendarPage(): ReactNode {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [bookingOpen, setBookingOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const settings = useQuery({ queryKey: ["clinic-settings", session?.clinicId], queryFn: () => client.getClinicSettings(), enabled: Boolean(session) });
+  const clinicZone = settings.data?.timeZoneId ?? "Europe/Kyiv";
+  useEffect(() => {
+    if (!settings.data) return;
+    const today = new Date(`${clinicDate(new Date(), settings.data.timeZoneId)}T00:00:00Z`);
+    setSelectedDay(today);
+    setWeekStart(startOfWeekUtc(today));
+  }, [settings.data?.timeZoneId]);
 
-  const from = useMemo(() => (view === "week" ? weekStart : startOfWeekUtc(selectedDay)), [view, weekStart, selectedDay]);
-  const to = useMemo(() => addDays(from, view === "week" ? 7 : 1), [from, view]);
+  const firstDay = view === "week" ? weekStart : selectedDay;
+  const from = clinicLocalToUtc(`${firstDay.toISOString().slice(0, 10)}T00:00`, clinicZone);
+  const to = clinicLocalToUtc(`${addDays(firstDay, view === "week" ? 7 : 1).toISOString().slice(0, 10)}T00:00`, clinicZone);
 
   const appointmentsQuery = useQuery({
     queryKey: ["appointments", session?.clinicId, from.toISOString(), to.toISOString(), statusFilter],
@@ -139,22 +140,24 @@ export function CalendarPage(): ReactNode {
   const byDay = useMemo(() => {
     const map = new Map<string, AppointmentDto[]>();
     for (const appt of appointmentsQuery.data ?? []) {
-      const key = new Date(appt.startAtUtc).toISOString().slice(0, 10);
+      const key = clinicDate(new Date(appt.startAtUtc), clinicZone);
       map.set(key, [...(map.get(key) ?? []), appt]);
     }
     return map;
-  }, [appointmentsQuery.data]);
+  }, [appointmentsQuery.data, clinicZone]);
 
   return (
     <section>
       <div className="ws-page-header">
         <h1>{t("calendar.title")}</h1>
         {canManage && (
-          <button type="button" className="ws-button ws-button-primary" onClick={() => setBookingOpen(true)}>
+          <button type="button" className="ws-button ws-button-primary" disabled={!settings.isSuccess} onClick={() => setBookingOpen(true)}>
             {t("calendar.book")}
           </button>
         )}
       </div>
+      <p className="ws-muted">{clinicZone}</p>
+      {settings.isError && <p role="alert">{t("common.error")}</p>}
 
       <div className="ws-filters">
         <div className="ws-view-toggle" role="tablist" aria-label={t("calendar.view")}>
@@ -181,9 +184,10 @@ export function CalendarPage(): ReactNode {
           <span className="ws-field-label">{t("calendar.date")}</span>
           <input
             type="date"
-            value={new Date(selectedDay.getTime() - selectedDay.getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
+            value={selectedDay.toISOString().slice(0, 10)}
             onChange={(e) => {
-              const d = new Date(e.target.value + "T00:00:00");
+              if (!e.target.value) return;
+              const d = new Date(e.target.value + "T00:00:00Z");
               setSelectedDay(d);
               setWeekStart(startOfWeekUtc(d));
             }}
@@ -234,15 +238,15 @@ export function CalendarPage(): ReactNode {
             const list = (byDay.get(key) ?? []).sort((a, b) => a.startAtUtc.localeCompare(b.startAtUtc));
             return (
               <div key={key} className="ws-calendar-col">
-                <h3 className="ws-calendar-day-title">{day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</h3>
+                <h3 className="ws-calendar-day-title">{day.toLocaleDateString(undefined, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })}</h3>
                 {list.length === 0 ? (
                   <p className="ws-muted ws-calendar-empty">—</p>
                 ) : (
                   list.map((appt) => (
                     <article key={appt.id} className={`ws-appt ${STATUS_COLORS[appt.status]}`}>
                       <div className="ws-appt-time">
-                        {new Date(appt.startAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–
-                        {new Date(appt.endAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(appt.startAtUtc).toLocaleTimeString([], { timeZone: clinicZone, hour: "2-digit", minute: "2-digit" })}–
+                        {new Date(appt.endAtUtc).toLocaleTimeString([], { timeZone: clinicZone, hour: "2-digit", minute: "2-digit" })}
                       </div>
                       <div className="ws-appt-patient">{appt.patientFullName}</div>
                       <div className="ws-appt-meta">
@@ -291,7 +295,7 @@ export function CalendarPage(): ReactNode {
         </div>
       )}
 
-      {bookingOpen || (canManage && searchParams.get("book")) ? (
+      {settings.isSuccess && (bookingOpen || (canManage && searchParams.get("book"))) ? (
         <BookingDialog
           presetPatientId={searchParams.get("book") ?? undefined}
           onClose={() => {
@@ -303,6 +307,7 @@ export function CalendarPage(): ReactNode {
           clinicians={(membersQuery.data ?? []).filter((m) => m.membershipActive && (m.role === "Clinician" || m.role === "ClinicAdmin"))}
           chairs={(chairsQuery.data ?? []).filter((c) => c.isActive)}
           defaultDay={selectedDay}
+          clinicZone={clinicZone}
         />
       ) : null}
     </section>
@@ -315,12 +320,14 @@ function BookingDialog({
   chairs,
   defaultDay,
   presetPatientId,
+  clinicZone,
 }: {
   onClose: () => void;
   clinicians: Array<{ userId: string; fullName: string; role: string }>;
   chairs: Array<{ id: string; name: string }>;
   defaultDay: Date;
   presetPatientId?: string;
+  clinicZone: string;
 }): ReactNode {
   const { client, t } = useAuth();
   const queryClient = useQueryClient();
@@ -330,7 +337,7 @@ function BookingDialog({
   const [patientId, setPatientId] = useState("");
   const [clinicianId, setClinicianId] = useState(clinicians[0]?.userId ?? "");
   const [chairId, setChairId] = useState(chairs[0]?.id ?? "");
-  const [start, setStart] = useState(toLocalInput(new Date(defaultDay.setHours(9, 0, 0, 0))));
+  const [start, setStart] = useState(`${defaultDay.toISOString().slice(0, 10)}T09:00`);
   const [duration, setDuration] = useState(30);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -366,7 +373,7 @@ function BookingDialog({
 
   const book = useMutation({
     mutationFn: () => {
-      const startUtc = fromLocalInput(start);
+      const startUtc = clinicLocalToUtc(start, clinicZone);
       return client.createAppointment({
         patientId,
         clinicianUserId: clinicianId,

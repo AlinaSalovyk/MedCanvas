@@ -19,6 +19,7 @@ npm run lint                                            # 0 errors; no new unjus
 npm run build
 node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run
 npx playwright test --workers=2
+npm run test:e2e:fullstack                                # real API + disposable PostgreSQL, two browser zones
 ```
 - Architectural invariants stay green: `import-cycles`, `api-surface` parity (349 frozen exports), canonical fixture drift, FHIR goldens.
 
@@ -28,6 +29,7 @@ CRUD/lifecycle · validators (full negative matrix §7.2) · domain invariants/s
 ## 2. CI verification (hosted)
 
 - Workflows: `CI` (frontend incl. Playwright) and `Backend CI` (build/format/test+coverage) — both must be green **on the exact PR HEAD** after the final push.
+- `Full-stack browser E2E` is also mandatory for the stabilization PR. Its test-only host must migrate the isolated database before listening; no mocked successful business responses fulfill this gate.
 - Monitoring: identify run IDs once, then `gh run watch <id> --interval 180 --exit-status` (or equivalent); poll at 3–5-minute intervals at most; never re-fetch logs of a running job.
 - A failed run: read the failing job logs, fix the actual cause, push, re-verify the NEW HEAD.
 
@@ -67,5 +69,10 @@ GitHub: correct branch; atomic logical commits; PR with full description (module
 8. Explicit list of prerequisites for real-clinical use (TZ §12: legal basis, encryption, backups, incident response, etc.) — demo-ready ≠ production-ready.
 
 ## 7. Stop conditions
+
+The post-M09 preflight exposed an embedded local Git-remote credential. Sanitizing
+the URL does not establish revocation/rotation. Automatic merging remains stopped
+until the credential owner completes exposure review. Historical green workflows
+and the absence of branch protection do not waive this security gate.
 
 Any of: missing authoritative spec section; unresolvable P0/P1 defect; branch protection blocking verified merge; CI irreparably red due to environment; security regression that cannot be fixed without weakening guarantees; secrets exposure. On stop: preserve branch, record exact blocker in `PROGRESS.md`, report.

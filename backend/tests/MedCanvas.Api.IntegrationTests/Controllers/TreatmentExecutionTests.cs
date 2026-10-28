@@ -172,17 +172,33 @@ public class TreatmentExecutionTests : IClassFixture<MedCanvasApiFactory>, IAsyn
         }
 
         var planItemId = plan.Items[0].Id;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            var changed = await db.ProcedureCatalogItems.FindAsync(catalog.Id);
+            changed!.Update("Updated catalog", null, null, 2500m, 30, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+        }
         var response = await seed.Client.PostAsJsonAsync($"/api/v1/encounters/{seed.Encounter.Id}/performed-procedures", new
         {
             catalogItemId = catalog.Id,
             idempotencyKey = "idem-exec-5",
             treatmentPlanItemId = planItemId
         });
-
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        var dto = await response.Content.ReadFromJsonAsync<PerformedProcedureDto>();
-        dto!.TreatmentPlanItemId.Should().Be(planItemId);
-        dto.UnitPriceSnapshot.Should().Be(1200m);
+        var executed = (await response.Content.ReadFromJsonAsync<PerformedProcedureDto>())!;
+        executed.UnitPriceSnapshot.Should().Be(1200m, "execution must preserve approved plan terms");
+        executed.ToothFdi.Should().Be("26");
+        var duplicate = await seed.Client.PostAsJsonAsync($"/api/v1/encounters/{seed.Encounter.Id}/performed-procedures", new
+        {
+            catalogItemId = catalog.Id,
+            idempotencyKey = "different-operation-same-plan-item",
+            treatmentPlanItemId = planItemId
+        });
+        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        executed.TreatmentPlanItemId.Should().Be(planItemId);
+        executed.UnitPriceSnapshot.Should().Be(1200m);
 
         // Plan moved Approved -> InProgress and the item is marked performed
         using (var scope = _factory.Services.CreateScope())

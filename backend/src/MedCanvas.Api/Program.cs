@@ -64,6 +64,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanRegisterSimulatedPayments, policy =>
+        policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
+            MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,
+            MedCanvas.Domain.Enums.MembershipRole.Assistant)));
     options.AddPolicy(MedCanvas.Application.Common.Security.Policies.CanReadPatients, policy =>
         policy.Requirements.Add(new MedCanvas.Infrastructure.Security.ActiveClinicMembershipRequirement(
             MedCanvas.Domain.Enums.MembershipRole.ClinicAdmin,

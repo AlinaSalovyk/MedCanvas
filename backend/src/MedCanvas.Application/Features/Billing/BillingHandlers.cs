@@ -18,17 +18,6 @@ internal static class BillingMapping
             .Select(p => p.FullName)
             .FirstOrDefaultAsync(cancellationToken) ?? "?";
 
-        var procedures = await dbContext.PerformedProcedures
-            .AsNoTracking()
-            .Where(pp => pp.EncounterId == invoice.EncounterId && pp.ClinicId == invoice.ClinicId)
-            .ToListAsync(cancellationToken);
-
-        var catalogIds = procedures.Select(p => p.ProcedureCatalogItemId).Distinct().ToList();
-        var catalogNames = await dbContext.ProcedureCatalogItems
-            .AsNoTracking()
-            .Where(i => catalogIds.Contains(i.Id))
-            .ToDictionaryAsync(i => i.Id, i => i.Name, cancellationToken);
-
         var recorderIds = invoice.Payments.Select(p => p.RecordedByUserId).Distinct().ToList();
         var recorderNames = await dbContext.Users
             .AsNoTracking()
@@ -48,11 +37,11 @@ internal static class BillingMapping
             invoice.SimulatedPaid(),
             invoice.RemainingBalance(),
             invoice.IsDemo,
-            procedures
-                .Where(p => p.Status == PerformedProcedureStatus.Recorded)
+            invoice.Items
+                .OrderBy(p => p.PerformedProcedureId)
                 .Select(p => new InvoiceLineDto(
-                    p.Id,
-                    catalogNames.GetValueOrDefault(p.ProcedureCatalogItemId, "?"),
+                    p.PerformedProcedureId,
+                    p.DescriptionSnapshot,
                     p.ToothFdi,
                     p.Quantity,
                     p.UnitPriceSnapshot,
@@ -69,12 +58,14 @@ internal static class BillingMapping
                     p.CreatedAtUtc))
                 .ToList(),
             invoice.CreatedAtUtc,
-            invoice.UpdatedAtUtc);
+            invoice.UpdatedAtUtc,
+            invoice.HasLineSnapshot);
     }
 }
 
 public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<CreateInvoiceFromEncounterCommand, InvoiceDto>
 {
+    private readonly IBillingWriteLock _writeLock;
     private readonly IMedCanvasDbContext _dbContext;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IDateTimeProvider _dateTimeProvider;
@@ -82,8 +73,10 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
     public CreateInvoiceFromEncounterCommandHandler(
         IMedCanvasDbContext dbContext,
         ICurrentUserContext currentUserContext,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        IBillingWriteLock writeLock)
     {
+        _writeLock = writeLock;
         _dbContext = dbContext;
         _currentUserContext = currentUserContext;
         _dateTimeProvider = dateTimeProvider;
@@ -97,6 +90,7 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
         }
 
         var clinicId = _currentUserContext.ClinicId.Value;
+        await using var transaction = await _writeLock.AcquireAsync(clinicId, cancellationToken);
 
         var encounter = await _dbContext.DentalEncounters
             .AsNoTracking()
@@ -110,9 +104,11 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
         // computes the total. Already invoiced procedures are never billed twice.
         var alreadyInvoiced = await _dbContext.Invoices
             .AsNoTracking()
-            .Where(i => i.ClinicId == clinicId && i.EncounterId == encounter.Id && i.Status != InvoiceStatus.Voided)
-            .SelectMany(i => i.Payments.Select(p => p.Id))
-            .AnyAsync(cancellationToken);
+            .AnyAsync(i => i.ClinicId == clinicId && i.EncounterId == encounter.Id && i.Status != InvoiceStatus.Voided, cancellationToken);
+        if (alreadyInvoiced)
+        {
+            throw new ConflictException("The encounter already has an active invoice. Void an unpaid invoice before reissuing.");
+        }
 
         var procedures = await _dbContext.PerformedProcedures
             .AsNoTracking()
@@ -125,9 +121,12 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
             throw new Common.Exceptions.ConflictException("The encounter has no billable recorded procedures.");
         }
 
-        var invoiceNumber = $"INV-{clinicId.ToString("N")[..8].ToUpperInvariant()}-{_dateTimeProvider.UtcNow:yyyyMMddHHmmss}";
-        var invoice = Invoice.Create(clinicId, encounter.PatientId, encounter.Id, invoiceNumber, billableTotal, _currentUserContext.UserId.Value, _dateTimeProvider.UtcNow);
-        _ = alreadyInvoiced;
+        var catalogIds = procedures.Select(p => p.ProcedureCatalogItemId).Distinct().ToList();
+        var catalog = await _dbContext.ProcedureCatalogItems.AsNoTracking()
+            .Where(c => c.ClinicId == clinicId && catalogIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
+        var invoiceNumber = $"INV-{Guid.NewGuid():N}";
+        var invoice = Invoice.Issue(clinicId, encounter.PatientId, encounter.Id, invoiceNumber, procedures, catalog, _currentUserContext.UserId.Value, _dateTimeProvider.UtcNow);
 
         _dbContext.Invoices.Add(invoice);
 
@@ -142,6 +141,7 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
             _dateTimeProvider.UtcNow));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await BillingMapping.ProjectAsync(_dbContext, invoice, cancellationToken);
     }
@@ -149,6 +149,7 @@ public sealed class CreateInvoiceFromEncounterCommandHandler : IRequestHandler<C
 
 public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<RegisterSimulatedPaymentCommand, InvoiceDto>
 {
+    private readonly IBillingWriteLock _writeLock;
     private readonly IMedCanvasDbContext _dbContext;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IDateTimeProvider _dateTimeProvider;
@@ -156,8 +157,10 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
     public RegisterSimulatedPaymentCommandHandler(
         IMedCanvasDbContext dbContext,
         ICurrentUserContext currentUserContext,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        IBillingWriteLock writeLock)
     {
+        _writeLock = writeLock;
         _dbContext = dbContext;
         _currentUserContext = currentUserContext;
         _dateTimeProvider = dateTimeProvider;
@@ -171,6 +174,7 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
         }
 
         var clinicId = _currentUserContext.ClinicId.Value;
+        await using var transaction = await _writeLock.AcquireAsync(clinicId, cancellationToken);
 
         // FR-607: a retried request does not create a duplicate payment record.
         var existingPayment = await _dbContext.SimulatedPayments
@@ -178,6 +182,11 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
             .FirstOrDefaultAsync(p => p.ClinicId == clinicId && p.IdempotencyKey == request.IdempotencyKey.Trim(), cancellationToken);
         if (existingPayment != null)
         {
+            if (existingPayment.InvoiceId != request.InvoiceId || existingPayment.Amount != request.Amount ||
+                existingPayment.MethodLabel != request.MethodLabel.Trim())
+            {
+                throw new ConflictException("The idempotency key has already been used for a different simulated payment.");
+            }
             var existingInvoice = await _dbContext.Invoices
                 .AsNoTracking()
                 .Include(i => i.Payments)
@@ -192,6 +201,10 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
         {
             throw new NotFoundException(nameof(Invoice), request.InvoiceId);
         }
+        if (!invoice.HasLineSnapshot)
+        {
+            throw new ConflictException("This legacy invoice has no verifiable historical line snapshot. Financial review is required before further payments.");
+        }
 
         var payment = SimulatedPayment.Record(
             clinicId,
@@ -202,8 +215,8 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
             _currentUserContext.UserId.Value,
             _dateTimeProvider.UtcNow);
 
-        // FR-606: the domain rejects overpayment; racing requests serialize on the
-        // single tracked aggregate and one save.
+        // The database lock precedes all reads and remains held through the atomic
+        // payment, invoice status and audit commit (including retries and voids).
         invoice.AddSimulatedPayment(payment, _dateTimeProvider.UtcNow);
 
         _dbContext.SimulatedPayments.Add(payment);
@@ -219,6 +232,7 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
             _dateTimeProvider.UtcNow));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await BillingMapping.ProjectAsync(_dbContext, invoice, cancellationToken);
     }
@@ -226,12 +240,14 @@ public sealed class RegisterSimulatedPaymentCommandHandler : IRequestHandler<Reg
 
 public sealed class VoidInvoiceCommandHandler : IRequestHandler<VoidInvoiceCommand, InvoiceDto>
 {
+    private readonly IBillingWriteLock _writeLock;
     private readonly IMedCanvasDbContext _dbContext;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IDateTimeProvider _dateTimeProvider;
 
-    public VoidInvoiceCommandHandler(IMedCanvasDbContext dbContext, ICurrentUserContext currentUserContext, IDateTimeProvider dateTimeProvider)
+    public VoidInvoiceCommandHandler(IMedCanvasDbContext dbContext, ICurrentUserContext currentUserContext, IDateTimeProvider dateTimeProvider, IBillingWriteLock writeLock)
     {
+        _writeLock = writeLock;
         _dbContext = dbContext;
         _currentUserContext = currentUserContext;
         _dateTimeProvider = dateTimeProvider;
@@ -244,6 +260,7 @@ public sealed class VoidInvoiceCommandHandler : IRequestHandler<VoidInvoiceComma
             throw new UnauthorizedAccessException("Authenticated clinic context is required.");
         }
 
+        await using var transaction = await _writeLock.AcquireAsync(_currentUserContext.ClinicId.Value, cancellationToken);
         var invoice = await _dbContext.Invoices
             .Include(i => i.Payments)
             .FirstOrDefaultAsync(i => i.Id == request.InvoiceId && i.ClinicId == _currentUserContext.ClinicId.Value, cancellationToken);
@@ -265,6 +282,7 @@ public sealed class VoidInvoiceCommandHandler : IRequestHandler<VoidInvoiceComma
             _dateTimeProvider.UtcNow));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return await BillingMapping.ProjectAsync(_dbContext, invoice, cancellationToken);
     }
 }
@@ -342,6 +360,7 @@ public sealed class RegisterSimulatedPaymentCommandValidator : AbstractValidator
         RuleFor(x => x.InvoiceId).NotEmpty().WithMessage("Invoice identifier is required.");
         RuleFor(x => x.Amount)
             .GreaterThan(0).WithMessage("Simulated payment amount must be positive.")
+            .Must(amount => decimal.Round(amount, 2) == amount).WithMessage("Use at most two decimal places.")
             .LessThanOrEqualTo(999_999).WithMessage("Simulated payment amount cannot exceed 999 999 UAH.");
         RuleFor(x => x.MethodLabel)
             .NotEmpty().WithMessage("Method label is required.")

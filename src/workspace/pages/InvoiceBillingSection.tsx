@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InvoiceDto } from "../../api/types";
@@ -7,15 +7,34 @@ import { useAuth } from "../AuthContext";
 /** M07 demo billing section. Every operation is visibly marked as a SIMULATED
  *  demonstration (INV-008) — nothing here is real money. */
 export function InvoiceBillingSection({ encounterId }: { encounterId: string }): ReactNode {
-  const { client, t } = useAuth();
+  const { session } = useAuth();
+  const scope = `${session?.clinicId}:${session?.userId}:${encounterId}`;
+  return <EncounterBilling key={scope} encounterId={encounterId} scope={scope} />;
+}
+
+interface PaymentIntent { invoiceId: string; amount: number; operationId: string }
+
+function EncounterBilling({ encounterId, scope }: { encounterId: string; scope: string }): ReactNode {
+  const { client, t, session } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState("");
+  const storageKey = `medcanvas.demo-payment:${scope}`;
+  const [intent, setIntent] = useState<PaymentIntent | null>(() => {
+    try {
+      const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? "null");
+      if (stored && typeof stored === "object" && "invoiceId" in stored && typeof stored.invoiceId === "string" &&
+          "amount" in stored && typeof stored.amount === "number" && stored.amount > 0 &&
+          "operationId" in stored && typeof stored.operationId === "string") return stored as PaymentIntent;
+    } catch { /* Unavailable storage: retain the operation in memory. */ }
+    return null;
+  });
+  const pendingRef = useRef(false);
 
   // Invoices belong to the patient; the encounter's procedures drove them. We list
   // by the encounter's patient — resolved from the first performed procedure query.
   const invoicesQuery = useQuery({
-    queryKey: ["invoices", encounterId],
+    queryKey: ["invoices", session?.clinicId, encounterId],
     queryFn: async () => {
       // The billing API lists per patient; this panel is encounter-scoped, so we
       // filter client-side by encounter id after fetching the patient's invoices.
@@ -27,7 +46,7 @@ export function InvoiceBillingSection({ encounterId }: { encounterId: string }):
   });
 
   const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    void queryClient.invalidateQueries({ queryKey: ["invoices", session?.clinicId, encounterId] });
   };
 
   const issue = useMutation({
@@ -40,14 +59,28 @@ export function InvoiceBillingSection({ encounterId }: { encounterId: string }):
   });
 
   const pay = useMutation({
-    mutationFn: ({ invoiceId, amount }: { invoiceId: string; amount: number }) =>
-      client.registerSimulatedPayment(invoiceId, amount, crypto.randomUUID()),
+    mutationFn: (operation: PaymentIntent) =>
+      client.registerSimulatedPayment(operation.invoiceId, operation.amount, operation.operationId),
     onSuccess: () => {
       setError(null);
+      setIntent(null);
+      try { sessionStorage.removeItem(storageKey); } catch { /* Retained in memory. */ }
       invalidate();
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => {
+      setError(err.message);
+      invalidate();
+    },
+    onSettled: () => { pendingRef.current = false; },
   });
+
+  const submitPayment = (operation: PaymentIntent): void => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setIntent(operation);
+    try { sessionStorage.setItem(storageKey, JSON.stringify(operation)); } catch { /* Retained in memory. */ }
+    pay.mutate(operation);
+  };
 
   const voidInvoice = useMutation({
     mutationFn: (invoiceId: string) => client.voidInvoice(invoiceId, "Скасовано з робочого простору"),
@@ -72,23 +105,35 @@ export function InvoiceBillingSection({ encounterId }: { encounterId: string }):
         </p>
       )}
 
-      {invoices.length === 0 ? (
+      {invoicesQuery.isError && <p className="ws-error-text" role="alert">{t("common.error")}</p>}
+      {intent && (
+        <div role="status">
+          <p>{t("billing.uncertain")}</p>
+          <button type="button" className="ws-button" disabled={pay.isPending} onClick={() => submitPayment(intent)}>
+            {t("billing.retryPayment")} ({intent.amount.toFixed(2)} UAH)
+          </button>
+        </div>
+      )}
+      {!invoicesQuery.isLoading && !invoicesQuery.isError && invoices.every(i => i.status === "Voided") && (
         <div>
           <p className="ws-empty">{t("billing.none")}</p>
-          <button type="button" className="ws-button ws-button-primary" disabled={issue.isPending} onClick={() => issue.mutate()}>
+          <button type="button" className="ws-button ws-button-primary" disabled={issue.isPending || Boolean(intent)} onClick={() => issue.mutate()}>
             {t("billing.issue")}
           </button>
         </div>
-      ) : (
+      )}
+      {(
         invoices.map((invoice) => (
           <InvoiceCard
             key={invoice.id}
             invoice={invoice}
             customAmount={customAmount}
             onCustomAmountChange={setCustomAmount}
-            onPay={(amount) => pay.mutate({ invoiceId: invoice.id, amount })}
+            onPay={(amount) => {
+              if (!intent) submitPayment({ invoiceId: invoice.id, amount, operationId: crypto.randomUUID() });
+            }}
             onVoid={() => voidInvoice.mutate(invoice.id)}
-            paying={pay.isPending}
+            paying={pay.isPending || Boolean(intent) || voidInvoice.isPending}
           />
         ))
       )}
@@ -112,6 +157,8 @@ function InvoiceCard({
   paying: boolean;
 }): ReactNode {
   const { t } = useAuth();
+  const { session } = useAuth();
+  const canPay = session?.role === "ClinicAdmin" || session?.role === "Assistant";
 
   return (
     <div className={`ws-invoice ${invoice.status === "Voided" ? "ws-row-revoked" : ""}`}>
@@ -127,6 +174,7 @@ function InvoiceCard({
         <dt>{t("billing.balance")}</dt>
         <dd>{invoice.remainingBalance.toFixed(2)} UAH</dd>
       </dl>
+      {!invoice.hasLineSnapshot && <p role="alert">{t("billing.legacySnapshot")}</p>}
 
       {invoice.lines.length > 0 && (
         <table className="ws-table">
@@ -151,7 +199,7 @@ function InvoiceCard({
         </table>
       )}
 
-      {invoice.status !== "Voided" && invoice.remainingBalance > 0 && (
+      {canPay && invoice.hasLineSnapshot && invoice.status !== "Voided" && invoice.remainingBalance > 0 && (
         <div className="ws-form-actions">
           <button
             type="button"
@@ -198,8 +246,8 @@ function InvoiceCard({
         </details>
       )}
 
-      {invoice.status !== "Voided" && (
-        <button type="button" className="ws-button ws-button-small ws-button-danger" onClick={onVoid}>
+      {invoice.status !== "Voided" && invoice.simulatedPaid === 0 && (
+        <button type="button" className="ws-button ws-button-small ws-button-danger" disabled={paying} onClick={onVoid}>
           {t("billing.void")}
         </button>
       )}

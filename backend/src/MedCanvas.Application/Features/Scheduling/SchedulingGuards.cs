@@ -10,6 +10,17 @@ namespace MedCanvas.Application.Features.Scheduling;
 /// PostgreSQL exclusion-violation translation.</summary>
 internal static class SchedulingGuards
 {
+    public static async Task EnsureAvailabilityEditorAsync(IMedCanvasDbContext dbContext,
+        ICurrentUserContext actor, Guid clinicianUserId, CancellationToken cancellationToken)
+    {
+        var member = await dbContext.ClinicMemberships.AsNoTracking().AnyAsync(m =>
+            m.ClinicId == actor.ClinicId && m.UserId == clinicianUserId && m.IsActive &&
+            (m.Role == MembershipRole.Clinician || m.Role == MembershipRole.ClinicAdmin), cancellationToken);
+        if (!member) throw new NotFoundException(nameof(ClinicMembership), clinicianUserId);
+        if (actor.Role != MembershipRole.ClinicAdmin && actor.UserId != clinicianUserId)
+            throw new ForbiddenAccessException("Only the clinician or a clinic administrator can edit this availability.");
+    }
+
     public const string ExclusionViolationSqlState = "23P01";
 
     /// <summary>Friendly pre-check (the database EXCLUDE constraint is the hard guarantee).</summary>
@@ -75,6 +86,14 @@ internal static class SchedulingGuards
         var localStart = TimeZoneInfo.ConvertTimeFromUtc(startUtc, timeZone);
         var localEnd = TimeZoneInfo.ConvertTimeFromUtc(endUtc, timeZone);
 
+        // A working window uses wall-clock times. Reject ambiguous repeated times
+        // and intervals crossing an offset change rather than guessing availability.
+        if (timeZone.IsAmbiguousTime(localStart) || timeZone.IsAmbiguousTime(localEnd) ||
+            timeZone.GetUtcOffset(startUtc) != timeZone.GetUtcOffset(endUtc))
+        {
+            throw new Domain.Exceptions.DomainException("Appointment must use an unambiguous interval outside a daylight-saving transition.");
+        }
+
         // A slot must sit inside a single calendar day in clinic-local time.
         if (localStart.Date != localEnd.Date || localEnd <= localStart)
         {
@@ -88,8 +107,13 @@ internal static class SchedulingGuards
             throw new Domain.Exceptions.DomainException("The clinician does not work on the selected date (day off).");
         }
 
-        var hasAnyTemplate = plainWindows.Count > 0;
-        if (hasAnyTemplate && dateException == null)
+        // A boolean working-day exception has no interval of its own. It never
+        // grants unrestricted hours: an explicit weekly window and its breaks
+        // still apply. Extra working days require configuring a weekly window.
+        if (plainWindows.Count == 0)
+        {
+            throw new Domain.Exceptions.DomainException("The clinician has no configured working hours.");
+        }
         {
             // ISO day of week: Monday=1 … Sunday=7
             var dayOfWeek = ((int)localStart.DayOfWeek + 6) % 7 + 1;

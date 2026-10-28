@@ -164,6 +164,7 @@ public sealed class AddAvailabilityExceptionCommandHandler : IRequestHandler<Add
         }
 
         var clinicId = _currentUserContext.ClinicId.Value;
+        await SchedulingGuards.EnsureAvailabilityEditorAsync(_dbContext, _currentUserContext, request.ClinicianUserId, cancellationToken);
 
         var duplicate = await _dbContext.ProviderAvailabilityExceptions
             .FirstOrDefaultAsync(e => e.ClinicId == clinicId && e.ClinicianUserId == request.ClinicianUserId && e.Date == request.Date, cancellationToken);
@@ -206,6 +207,8 @@ public sealed class RemoveAvailabilityExceptionCommandHandler : IRequestHandler<
         {
             throw new NotFoundException(nameof(ProviderAvailabilityException), request.ExceptionId);
         }
+
+        await SchedulingGuards.EnsureAvailabilityEditorAsync(_dbContext, _currentUserContext, exception.ClinicianUserId, cancellationToken);
 
         _dbContext.ProviderAvailabilityExceptions.Remove(exception);
         await _dbContext.SaveChangesAsync(cancellationToken);

@@ -35,7 +35,7 @@ public class SchedulingControllerTests : IClassFixture<MedCanvasApiFactory>, IAs
         ClinicChair Chair,
         HttpClient Client);
 
-    private async Task<Seed> SeedClinicAsync(string identifier)
+    private async Task<Seed> SeedClinicAsync(string identifier, bool withAvailability = true)
     {
         var now = DateTime.UtcNow;
         using var scope = _factory.Services.CreateScope();
@@ -55,9 +55,33 @@ public class SchedulingControllerTests : IClassFixture<MedCanvasApiFactory>, IAs
             ClinicMembership.Create(clinic.Id, clinician.Id, MembershipRole.Clinician, now));
         db.Patients.Add(patient);
         db.ClinicChairs.Add(chair);
+        if (withAvailability)
+        {
+            foreach (var day in Enumerable.Range(1, 7))
+                db.ProviderAvailabilities.Add(ProviderAvailability.Create(clinic.Id, clinician.Id, day, new TimeOnly(8, 0), new TimeOnly(18, 0), now));
+        }
         await db.SaveChangesAsync();
 
         return new Seed(clinic, admin, clinician, patient, chair, _factory.CreateAuthenticatedClient(admin, clinic.Id, MembershipRole.ClinicAdmin));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Create_WithoutWorkingWindow_RejectsEvenWithBooleanWorkingException(bool addException)
+    {
+        var seed = await SeedClinicAsync("NO-SCHEDULE", withAvailability: false);
+        var start = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc);
+        if (addException)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.ProviderAvailabilityExceptions.Add(ProviderAvailabilityException.Create(seed.Clinic.Id, seed.Clinician.Id,
+                new DateOnly(2026, 11, 2), true, DateTime.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        var response = await seed.Client.PostAsJsonAsync("/api/v1/appointments", CreateBody(seed, start, start.AddMinutes(30)));
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     private static object CreateBody(Seed seed, DateTime startUtc, DateTime endUtc, string reason = "Checkup") => new
@@ -69,6 +93,84 @@ public class SchedulingControllerTests : IClassFixture<MedCanvasApiFactory>, IAs
         endAtUtc = endUtc,
         reasonForVisit = reason
     };
+
+    [Theory]
+    [InlineData("2026-03-29T00:45:00Z", "2026-03-29T01:15:00Z", false)]
+    [InlineData("2026-10-25T00:15:00Z", "2026-10-25T00:45:00Z", false)]
+    [InlineData("2026-03-29T07:00:00Z", "2026-03-29T07:30:00Z", true)]
+    [InlineData("2026-10-25T07:00:00Z", "2026-10-25T07:30:00Z", true)]
+    public async Task Availability_DaylightSavingTransitions_UsesExplicitUnambiguousIntervals(string from, string to, bool accepted)
+    {
+        var seed = await SeedClinicAsync("DST");
+        var start = DateTime.Parse(from, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal);
+        var end = DateTime.Parse(to, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal);
+        var response = await seed.Client.PostAsJsonAsync("/api/v1/appointments", CreateBody(seed, start, end));
+        response.StatusCode.Should().Be(accepted ? HttpStatusCode.Created : HttpStatusCode.BadRequest);
+        if (!accepted) (await response.Content.ReadAsStringAsync()).Should().Contain("unambiguous");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AvailabilityException_UnauthorizedTarget_HasNoPersistedSideEffects(bool foreign)
+    {
+        var seed = await SeedClinicAsync("EXCEPTION-AUTH");
+        var target = foreign ? (await SeedClinicAsync("EXCEPTION-FOREIGN")).Clinician.Id : seed.Admin.Id;
+        var client = foreign ? seed.Client : _factory.CreateAuthenticatedClient(seed.Clinician, seed.Clinic.Id, MembershipRole.Clinician);
+        var response = await client.PostAsJsonAsync($"/api/v1/availability/{target}/exceptions",
+            new { date = "2026-11-02", isWorkingDay = false });
+        response.StatusCode.Should().Be(foreign ? HttpStatusCode.NotFound : HttpStatusCode.Forbidden);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        db.ProviderAvailabilityExceptions.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(9, true)]
+    [InlineData(11, false)]
+    [InlineData(17, false)]
+    public async Task WorkingDayException_PreservesWeeklyWindowAndBreaks(int utcHour, bool accepted)
+    {
+        var seed = await SeedClinicAsync("WORKING-EXCEPTION", withAvailability: false);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            var window = ProviderAvailability.Create(seed.Clinic.Id, seed.Clinician.Id, 1, new TimeOnly(8, 0), new TimeOnly(18, 0), DateTime.UtcNow);
+            db.ProviderAvailabilities.Add(window);
+            db.ProviderAvailabilityBreaks.Add(ProviderAvailabilityBreak.Create(window.Id, new TimeOnly(13, 0), new TimeOnly(14, 0), DateTime.UtcNow));
+            db.ProviderAvailabilityExceptions.Add(ProviderAvailabilityException.Create(seed.Clinic.Id, seed.Clinician.Id, new DateOnly(2026, 11, 2), true, DateTime.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        var start = new DateTime(2026, 11, 2, utcHour, 0, 0, DateTimeKind.Utc);
+        var response = await seed.Client.PostAsJsonAsync("/api/v1/appointments", CreateBody(seed, start, start.AddMinutes(30)));
+        response.StatusCode.Should().Be(accepted ? HttpStatusCode.Created : HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Reschedule_IntoDayWithoutWorkingWindow_RejectsAndPreservesOriginal()
+    {
+        var seed = await SeedClinicAsync("RESCHED-UNAVAILABLE", withAvailability: false);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+            db.ProviderAvailabilities.Add(ProviderAvailability.Create(seed.Clinic.Id, seed.Clinician.Id, 1,
+                new TimeOnly(8, 0), new TimeOnly(18, 0), DateTime.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        var start = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc);
+        var created = await seed.Client.PostAsJsonAsync("/api/v1/appointments", CreateBody(seed, start, start.AddMinutes(30)));
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var dto = (await created.Content.ReadFromJsonAsync<AppointmentDto>())!;
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/appointments/{dto.Id}/reschedule")
+        {
+            Content = JsonContent.Create(new { newStartAtUtc = start.AddDays(1), newEndAtUtc = start.AddDays(1).AddMinutes(30), expectedVersion = 1 })
+        };
+        request.Headers.Add("If-Match", "\"1\"");
+        (await seed.Client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var check = _factory.Services.CreateScope();
+        var dbCheck = check.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
+        (await dbCheck.Appointments.FindAsync(dto.Id))!.StartAtUtc.Should().Be(start);
+    }
 
     [Fact]
     public async Task Create_WithFreeSlot_Returns201WithETag()
@@ -129,6 +231,7 @@ public class SchedulingControllerTests : IClassFixture<MedCanvasApiFactory>, IAs
             var db = scope.ServiceProvider.GetRequiredService<IMedCanvasDbContext>();
             db.Users.Add(otherClinician);
             db.ClinicMemberships.Add(ClinicMembership.Create(seed.Clinic.Id, otherClinician.Id, MembershipRole.Clinician, now));
+            db.ProviderAvailabilities.Add(ProviderAvailability.Create(seed.Clinic.Id, otherClinician.Id, 1, new TimeOnly(8, 0), new TimeOnly(18, 0), now));
             await db.SaveChangesAsync();
         }
 
@@ -256,7 +359,7 @@ public class SchedulingControllerTests : IClassFixture<MedCanvasApiFactory>, IAs
     [Fact]
     public async Task Availability_BlocksOutsideHoursBreaksAndDaysOff()
     {
-        var seed = await SeedClinicAsync("SCH-9");
+        var seed = await SeedClinicAsync("SCH-9", withAvailability: false);
         var now = DateTime.UtcNow;
 
         // Weekly template: Monday 08:00–18:00 local with a 13:00–14:00 lunch.

@@ -37,6 +37,8 @@ public sealed class SimulatedPayment : BaseEntity
         if (clinicId == Guid.Empty) throw new ArgumentException("Clinic ID cannot be empty GUID.", nameof(clinicId));
         if (invoiceId == Guid.Empty) throw new ArgumentException("Invoice ID cannot be empty GUID.", nameof(invoiceId));
         if (amount <= 0) throw new ArgumentException("Simulated payment amount must be positive.", nameof(amount));
+        if (amount > 999_999m || decimal.Round(amount, 2) != amount)
+            throw new ArgumentException("Simulated payments must use at most two decimal places and not exceed 999 999 UAH.", nameof(amount));
         if (string.IsNullOrWhiteSpace(methodLabel)) throw new ArgumentException("Method label is required.", nameof(methodLabel));
         if (string.IsNullOrWhiteSpace(idempotencyKey)) throw new ArgumentException("Idempotency key is required.", nameof(idempotencyKey));
         if (recordedByUserId == Guid.Empty) throw new ArgumentException("Recorder user ID cannot be empty GUID.", nameof(recordedByUserId));

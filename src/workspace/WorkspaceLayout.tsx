@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useAuth } from "./AuthContext";
+import { flushActiveEncounter } from "./encounterNavigation";
 
 /**
  * Authenticated workspace shell: topbar with clinic identity/switcher and the
@@ -32,6 +33,7 @@ export function WorkspaceLayout(): ReactNode {
     setSwitching(true);
     setSwitchError(null);
     try {
+      await flushActiveEncounter();
       const result = await client.switchClinic(clinicId);
       if (result.token && result.clinicId) {
         // Tenant boundary: drop every cached query from the previous clinic.
@@ -53,11 +55,16 @@ export function WorkspaceLayout(): ReactNode {
     }
   };
 
-  const handleLogout = (): void => {
-    queryClient.clear();
-    client.logout();
-    logout();
-    navigate("/login", { replace: true });
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await flushActiveEncounter();
+      queryClient.clear();
+      client.logout();
+      logout();
+      navigate("/login", { replace: true });
+    } catch {
+      setSwitchError(t("common.saveError"));
+    }
   };
 
   return (

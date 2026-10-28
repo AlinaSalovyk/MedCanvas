@@ -73,6 +73,20 @@ describe("MedCanvasApiClient", () => {
 
     await expect(authedClient.getCurrentUser()).rejects.toThrow(ApiError);
     expect(onUnauthorized).toHaveBeenCalledOnce();
+    expect(authedClient.getToken()).toBeNull();
+  });
+
+  it("ignores an old session's late 401 after clinic switching", async () => {
+    const onUnauthorized = vi.fn();
+    const authedClient = new MedCanvasApiClient({ token: "old-clinic", onUnauthorized });
+    let respond!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(() => new Promise(resolve => { respond = resolve; }));
+    const oldRequest = authedClient.getCurrentUser();
+    authedClient.setToken("new-clinic");
+    respond(new Response(null, { status: 401 }));
+    await expect(oldRequest).rejects.toThrow(ApiError);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(authedClient.getToken()).toBe("new-clinic");
   });
 
   it("passes If-Match header and captures ETag on saveOdontogram", async () => {

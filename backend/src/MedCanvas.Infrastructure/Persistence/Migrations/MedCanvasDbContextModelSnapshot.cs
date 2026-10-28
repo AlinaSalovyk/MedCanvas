@@ -317,6 +317,9 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EncounterId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("HasLineSnapshot")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -352,6 +355,10 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("ClinicId", "EncounterId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" <> 'Voided'");
 
                     b.HasIndex("ClinicId", "PatientId");
 
@@ -611,6 +618,10 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                     b.HasIndex("EncounterId");
 
                     b.HasIndex("ProcedureCatalogItemId");
+
+                    b.HasIndex("TreatmentPlanItemId")
+                        .IsUnique()
+                        .HasFilter("\"TreatmentPlanItemId\" IS NOT NULL AND \"Status\" = 'Recorded'");
 
                     b.HasIndex("ClinicId", "EncounterId");
 
@@ -1083,6 +1094,69 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PatientId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsMany("MedCanvas.Domain.Entities.InvoiceItem", "Items", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("CodeSnapshot")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)");
+
+                            b1.Property<DateTime>("CreatedAtUtc")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("DescriptionSnapshot")
+                                .IsRequired()
+                                .HasMaxLength(250)
+                                .HasColumnType("character varying(250)");
+
+                            b1.Property<Guid>("InvoiceId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<Guid>("PerformedProcedureId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("ToothFdi")
+                                .HasMaxLength(2)
+                                .HasColumnType("character varying(2)");
+
+                            b1.Property<decimal>("TotalAmount")
+                                .HasPrecision(12, 2)
+                                .HasColumnType("numeric(12,2)");
+
+                            b1.Property<decimal>("UnitPriceSnapshot")
+                                .HasPrecision(12, 2)
+                                .HasColumnType("numeric(12,2)");
+
+                            b1.Property<DateTime>("UpdatedAtUtc")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("PerformedProcedureId");
+
+                            b1.HasIndex("InvoiceId", "PerformedProcedureId")
+                                .IsUnique();
+
+                            b1.ToTable("InvoiceItems", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("InvoiceId");
+
+                            b1.HasOne("MedCanvas.Domain.Entities.PerformedProcedure", null)
+                                .WithMany()
+                                .HasForeignKey("PerformedProcedureId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
+                        });
+
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("MedCanvas.Domain.Entities.OdontogramRecord", b =>
@@ -1178,6 +1252,11 @@ namespace MedCanvas.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProcedureCatalogItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("MedCanvas.Domain.Entities.TreatmentPlanItem", null)
+                        .WithMany()
+                        .HasForeignKey("TreatmentPlanItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("MedCanvas.Domain.Entities.ProcedureCatalogItem", b =>

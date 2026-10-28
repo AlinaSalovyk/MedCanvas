@@ -34,6 +34,7 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseContentRoot(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/MedCanvas.Api")));
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("Jwt:Secret", TestJwtGenerator.DefaultTestSecret);
@@ -80,14 +81,22 @@ public class MedCanvasApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     {
         await _dbContainer.StartAsync();
 
-        using var scope = Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<MedCanvasDbContext>();
+        var options = new DbContextOptionsBuilder<MedCanvasDbContext>()
+            .UseNpgsql(_dbContainer.GetConnectionString()).Options;
+        await using var context = new MedCanvasDbContext(options);
         await context.Database.MigrateAsync();
     }
 
     public new async Task DisposeAsync()
     {
-        await _dbContainer.DisposeAsync();
+        try
+        {
+            await base.DisposeAsync();
+        }
+        finally
+        {
+            await _dbContainer.DisposeAsync();
+        }
     }
 
     public async Task ResetDatabaseAsync()

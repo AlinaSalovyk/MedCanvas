@@ -409,7 +409,9 @@ public class AuthControllerTests : IClassFixture<MedCanvasApiFactory>, IAsyncLif
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var clinics = await response.Content.ReadFromJsonAsync<List<ClinicMembershipSummaryDto>>();
-        clinics!.Select(c => c.ClinicId).Should().BeEquivalentTo(new[] { clinicA.Id, clinicB.Id });
+        clinics.Should().NotBeNull();
+        ArgumentNullException.ThrowIfNull(clinics);
+        clinics.Select(c => c.ClinicId).Should().BeEquivalentTo(new[] { clinicA.Id, clinicB.Id });
         clinics.Select(c => c.Role).Should().BeEquivalentTo(new[] { "Clinician", "Assistant" });
     }
 
