@@ -95,6 +95,9 @@ async function loginAs(role = "ClinicAdmin"): Promise<void> {
 describe("Calendar page (M03)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(MedCanvasApiClient.prototype, "getClinicSettings").mockResolvedValue({
+      clinicId: "c-1", name: "Clinic One", identifier: "ONE", timeZoneId: "Europe/Kyiv",
+    });
     for (const m of [
       "login",
       "getMyClinics",
@@ -128,9 +131,10 @@ describe("Calendar page (M03)", () => {
     await waitFor(() => expect(screen.getByText("Олена Коваленко")).toBeTruthy());
     expect(screen.getByText(/Dr\. Sched · Chair 1/)).toBeTruthy();
     expect(screen.getAllByText("Заплановано").length).toBeGreaterThan(1);
-    expect(getAppointments).toHaveBeenCalledWith(
-      expect.objectContaining({ fromUtc: expect.stringMatching(/T00:00:00/), toUtc: expect.stringMatching(/T00:00:00/) })
-    );
+    const requested = getAppointments.mock.calls[getAppointments.mock.calls.length - 1][0]!;
+    const localClock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    expect(localClock.format(new Date(requested.fromUtc))).toBe("00:00");
+    expect(localClock.format(new Date(requested.toUtc))).toBe("00:00");
 
     // Status filter propagates
     fireEvent.change(screen.getByLabelText(/Статус|Status/, { selector: "select" }), { target: { value: "Confirmed" } });
@@ -176,6 +180,7 @@ describe("Calendar page (M03)", () => {
 
     await loginAs();
 
+    await waitFor(() => expect(screen.getByRole("button", { name: /Записати|Book/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /Записати|Book/ }));
 
     const dialog = await screen.findByRole("dialog");
